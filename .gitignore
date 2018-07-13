@@ -5,6 +5,10 @@ relation_sentences/
 sentences_annotation/
 sentences_annotation_auto/
 
+#idea
+.idea/
+
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
