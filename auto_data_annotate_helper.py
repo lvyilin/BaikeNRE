@@ -1,4 +1,8 @@
-ANNOTATION_DIR = "D:\\Projects\\Baike\\sentences_annotation_auto\\"
+import os
+
+CWD = os.getcwd()
+
+ANNOTATION_DIR = CWD + "\\sentences_annotation_auto\\"
 ANNOTATION_TARGET = ANNOTATION_DIR + "annotation.txt"
 ANNOTATION_RESULT = ANNOTATION_DIR + "annotation_fin.txt"
 
@@ -10,6 +14,7 @@ def split_sentence(line):
 
 with open(ANNOTATION_TARGET, "r", encoding="utf8") as f:
     lines = f.readlines()
+    lines.reverse()
 with open(ANNOTATION_RESULT, "r", encoding="utf8") as g:
     lines_resume = g.readlines()
     if len(lines_resume) == 0:
@@ -18,7 +23,6 @@ with open(ANNOTATION_RESULT, "r", encoding="utf8") as g:
         last_line = lines_resume[-1]
 with open(ANNOTATION_RESULT, "a", 1, encoding="utf8") as g:
     lines_len = len(lines)
-
     i = 0
     count = 0
     resume_flag = True
