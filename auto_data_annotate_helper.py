@@ -66,8 +66,11 @@ with open(ANNOTATION_RESULT, "a", 1, encoding="utf8") as g:
                     inp = input("Input {} result: ".format(inc))
                     inp = inp.rstrip("\n")
                     if len(inp) != inc:
-                        print("Input error.")
-                        continue
+                        if inp == "none":
+                            inp = '2' * inc
+                        else:
+                            print("Input error.")
+                            continue
                     for j in range(len(inp)):
                         if inp[j] == '1':
                             g.write(lines[i + j])
