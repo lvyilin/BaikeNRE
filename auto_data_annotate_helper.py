@@ -44,6 +44,16 @@ with open(ANNOTATION_RESULT, "a", 1, encoding="utf8") as g:
             i += 1
             continue
         print(lines[i])
+
+        # single sentence mode
+        # inp = input("Input 1 result: ")
+        # if inp == '1':
+        #     g.write((lines[i]))
+        # i += 1
+        # continue
+        # end
+
+        # multiple sentence mode
         sentence = split_sentence(lines[i])
         inc = 1
         while i + inc < lines_len:
