@@ -43,7 +43,7 @@ with open(ANNOTATION_RESULT, "a", 1, encoding="utf8") as g:
             print(lines[i])
             i += 1
             continue
-        print(lines[i])
+        print("1: " + lines[i])
 
         # single sentence mode
         # inp = input("Input 1 result: ")
@@ -59,7 +59,7 @@ with open(ANNOTATION_RESULT, "a", 1, encoding="utf8") as g:
         while i + inc < lines_len:
             next_sentence = split_sentence(lines[i + inc])
             if next_sentence == sentence:
-                print(lines[i + inc])
+                print(str(inc + 1) + ": " + lines[i + inc])
                 inc += 1
             else:
                 while True:
