@@ -50,7 +50,6 @@ for file in dirs:
                 result_map[sentence] = set()
                 result_map[sentence].add(relation)
 
-
             words = segmentor.segment(sentence)
             postags = postagger.postag(words)
             netags = recognizer.recognize(words, postags)
@@ -59,7 +58,7 @@ for file in dirs:
             for i in range(len(netags)):
                 # if str(netags[i]).endswith("Nh")  and words[i] != data_dict['name'] and words[i] in PERSON_ENTITY_SET and words[i] not in ret_dict[rel]:
                 if str(netags[i]).endswith("Nh"):
-                     entity_list.append(words[i])
+                    entity_list.append(words[i])
             entity_list_len = len(entity_list)
             if entity_list_len >= 2:
                 for i in range(entity_list_len):
@@ -68,7 +67,7 @@ for file in dirs:
                             f.write("@@{}\n".format(basename))
                             basename_write_flag = True
 
-                        f.write("{} {} {} {}\n".format(sentence, entity_list[i], entity_list[j], relation,basename))
+                        f.write("{} {} {} {}\n".format(sentence, entity_list[i], entity_list[j], relation))
                         count += 1
     # if count >= 200:
     #     break

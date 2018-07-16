@@ -4,6 +4,7 @@ relation_data/
 relation_sentences/
 sentences_annotation/
 sentences_annotation_auto/
+entity_sentences/
 
 #idea
 .idea/
