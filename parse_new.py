@@ -12,7 +12,7 @@ cws_model_path = os.path.join(LTP_DATA_DIR, 'cws.model')
 pos_model_path = os.path.join(LTP_DATA_DIR, 'pos.model')
 ner_model_path = os.path.join(LTP_DATA_DIR, 'ner.model')
 segmentor = pyltp.Segmentor()
-segmentor.load_with_lexicon(cws_model_path, "entity_dict.txt")
+segmentor.load_with_lexicon(cws_model_path, "entity_dict.txt")  # TODO:检查"周总理"等是否识别
 postagger = pyltp.Postagger()
 postagger.load(pos_model_path)
 recognizer = pyltp.NamedEntityRecognizer()
