@@ -12,23 +12,42 @@ def split_sentence(line):
 
 
 def save_to_file():
-    with open("co_occur_stats_filtered.txt", "w", encoding="utf8") as f:
+    with open("co_occur_stats_filtered_2.txt", "w", encoding="utf8") as f:
         for item in DATA:
             f.write("{} {} {}\n".format(item[0], item[1], item[2]))
 
 
 def save_to_sqlite():
-    conn = sqlite3.connect('baike.sqlite')
+    conn = sqlite3.connect('baike.db')
     c = conn.cursor()
     for item in DATA:
         item[0] = str(item[0]).replace("'", "''")
         item[1] = str(item[1]).replace("'", "''")
         item[2] = str(item[2]).replace("'", "''")
         # item[2] = str(item[2]).replace('"','""')
-        sql = "insert into Data(entity_a,entity_b,sentence,relation) VALUES('{}','{}','{}',0)".format(item[0], item[1],
-                                                                                                      item[2])
-        print(sql)
-        c.execute(sql)
+        c.execute("select count(*) from Data where entity_a=? and entity_b=? and sentence=?",
+                  (item[0], item[1], item[2]))
+        result = c.fetchone()
+        print(result)
+        if result[0] == 0:
+            sql = "insert into Data3(entity_a,entity_b,sentence,relation) VALUES('{}','{}','{}',0)".format(item[0],
+                                                                                                           item[1],
+                                                                                                           item[2])
+            print(sql)
+            c.execute(sql)
+
+    conn.commit()
+    conn.close()
+
+
+def update_data():
+    conn = sqlite3.connect('baike.db')
+    c = conn.cursor()
+    c.execute("select entity_a,entity_b,sentence, relation from Data2 where relation!=0")
+    result = c.fetchall()
+    for row in result:
+        c.execute("update Data3 set relation=? where entity_a=? and entity_b=? and sentence=?",
+                  (row[3], row[0], row[1], row[2]))
 
     conn.commit()
     conn.close()
@@ -50,9 +69,10 @@ def read_data():
 
 
 def main():
-    read_data()
-    # save_to_file()
-    save_to_sqlite()
+    # read_data()
+    # # save_to_file()
+    # save_to_sqlite()
+    update_data()
 
 
 if __name__ == '__main__':
