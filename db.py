@@ -1,6 +1,6 @@
 import sqlite3
 
-conn = sqlite3.connect('Baike.db')
+conn = sqlite3.connect('baike.db')
 
 c = conn.cursor()
 
