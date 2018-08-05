@@ -1,10 +1,12 @@
 import mxnet as mx
 from gensim.models import KeyedVectors
 import numpy as np
+import os
 
-WORDVEC = "D:\\Projects\\Baike\\wordvectors.kv"
-CORPUS = "D:\\Projects\\Baike\\separated_corpus_with_label.txt"
-DIM = 100
+CWD = os.getcwd()
+WORDVEC = CWD + "\\wordvectors.kv"
+CORPUS = CWD + "\\separated_corpus_with_label.txt"
+DIM = 250
 FIXED_WORD_LENGTH = 78
 TRAIN_RADIO = 0.7
 
