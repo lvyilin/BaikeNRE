@@ -10,5 +10,5 @@ model = Word2Vec(sentences, size=250, window=5, min_count=5, workers=4, iter=10)
 model.save("word2vec.model")
 model = Word2Vec.load("word2vec.model")
 
-path = "D:\\Projects\\Baike\\wordvectors.kv"
+path = CWD + "\\wordvectors.kv"
 model.wv.save(path)
