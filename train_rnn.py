@@ -11,17 +11,15 @@ FIXED_WORD_LENGTH = 60
 input_train = np.load('data_train.npy')
 input_test = np.load('data_test.npy')
 x_train = input_train[:, 3:].reshape((input_train.shape[0], FIXED_WORD_LENGTH, DIMENSION))
-x_train = np.expand_dims(x_train, axis=1)
+# x_train = np.expand_dims(x_train, axis=1)
 y_train = input_train[:, 0]
 print(x_train.shape)
 print(y_train.shape)
 x_test = input_test[:, 3:].reshape((input_test.shape[0], FIXED_WORD_LENGTH, DIMENSION))
-x_test = np.expand_dims(x_test, axis=1)
+# x_test = np.expand_dims(x_test, axis=1)
 y_test = input_test[:, 0]
 print(x_test.shape)
 print(y_test.shape)
-print(y_train[0:5])
-print(y_test[0:5])
 
 x_train = x_train.astype(np.float32)
 y_train = y_train.astype(np.float32)
@@ -30,20 +28,10 @@ y_test = y_test.astype(np.float32)
 print(x_train.shape, x_test.shape)
 
 net = nn.Sequential()
-# Simple DNN
-# net.add(nn.Dense(64, activation='relu'))
-# net.add(nn.Dense(32, activation='relu'))
-# net.add(nn.Dense(10))
-# net.initialize(ctx=ctx, init=init.Xavier())
-
-# CNN, CR-CNN
-# net.add(nn.Conv2D(256, kernel_size=(5, DIMENSION), padding=(1, 0), activation='relu'))
-net.add(nn.Conv2D(256, kernel_size=(3, DIMENSION), padding=(1, 0), activation='relu'))
-# net.add(nn.MaxPool2D(pool_size=(FIXED_WORD_LENGTH - 2, 1)))
-net.add(nn.MaxPool2D(pool_size=(FIXED_WORD_LENGTH, 1)))
-net.add(nn.Dense(256, activation='relu'))
-net.add(nn.Dropout(0.5))
-net.add(nn.Dense(6))
+# LSTM-RNN
+# net.add(mx.gluon.nn.Embedding(DIMENSION, 10))
+net.add(mx.gluon.rnn.LSTM(256))
+net.add(mx.gluon.nn.Dense(6, flatten=False))
 
 net.initialize(init=init.Xavier())
 
