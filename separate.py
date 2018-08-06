@@ -1,5 +1,4 @@
 # 将句子分词结果保存
-import json
 import os
 import pyltp
 
@@ -23,12 +22,11 @@ def sentence():
         # i = 0
         for line in f:
             s = []
+            line = line.strip().replace("", " ")
             words = segmentor.segment(line)
             for w in words:
                 s.append(str(w).strip())
-                s.append(" ")
-            s[-1] = "\n"
-            g.write("".join(s))
+            g.write(" ".join(s) + "\n")
 
 
 def sentence_with_label():
@@ -36,16 +34,17 @@ def sentence_with_label():
     with open(CORPUS_LABELED, "r", encoding="utf8") as f, open(SEP_CORPUS_LABELED, "w", encoding="utf8") as g:
         for line in f:
             spl = line.split("###")
-            s = []
-            words = segmentor.segment(spl[0])
+            t = [spl[0], spl[1], spl[3].strip()]
+            spl[2] = spl[2].replace("", " ")
+            words = segmentor.segment(spl[2])
+            if len(words) > max_sep_word_len:
+                max_sep_word_len = len(words)
+                print("".join(words))
             for w in words:
-                if len(words) > max_sep_word_len:
-                    max_sep_word_len = len(words)
-                s.append(str(w).strip())
-                s.append(" ")
-            s.append(spl[1])
-            g.write("".join(s))
+                t.append(str(w).strip())
+            g.write(" ".join(t) + "\n")
     print("max sep word length: %d" % max_sep_word_len)
 
 
+# sentence()
 sentence_with_label()

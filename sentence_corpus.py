@@ -24,16 +24,17 @@ def sentence():
 def sentence_with_label():
     conn = sqlite3.connect('baike.db')
     c = conn.cursor()
-    c.execute("select sentence,relation from Data where relation!=0 and relation!=-1")
+    c.execute("select entity_a,entity_b, sentence,relation from Data where relation!=0 and relation!=-1")
     for row in c:
-        sentence_set.add(row[0] + "###" + str(row[1]))
+        sentence_set.add(row[0] + "###" + row[1] + "###" + row[2] + "###" + str(row[3]))
 
-    c.execute("select sentence,relation from Data3 where relation!=0 and relation!=-1")
+    c.execute("select entity_a,entity_b, sentence,relation from Data3 where relation!=0 and relation!=-1")
     for row in c:
-        sentence_set.add(row[0] + "###" + str(row[1]))
+        sentence_set.add(row[0] + "###" + row[1] + "###" + row[2] + "###" + str(row[3]))
     with open(SENTENCE_LABEL_CORPUS, "w", encoding="utf8") as g:
         for s in sentence_set:
             g.write(s + "\n")
 
 
+# sentence()
 sentence_with_label()

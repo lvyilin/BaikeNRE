@@ -3,39 +3,30 @@ import mxnet as mx
 from mxnet import gluon, init, autograd, nd
 from mxnet.gluon import loss as gloss, nn
 
-DIM = 250
-FIXED_WORD_LENGTH = 78
-
-d_c = 256  # kernel_units
-k = 3
-r = np.sqrt(6 / (9 + d_c))
+SENTENCE_DIMENSION = 100
+POS_DIMENSION = 5
+DIMENSION = SENTENCE_DIMENSION + 2 * POS_DIMENSION
+FIXED_WORD_LENGTH = 60
 
 input_train = np.load('data_train.npy')
 input_test = np.load('data_test.npy')
-x_train = input_train[:, :-1].reshape((input_train.shape[0], FIXED_WORD_LENGTH, DIM))
-y_train = input_train[:, -1]
+x_train = input_train[:, 3:].reshape((input_train.shape[0], FIXED_WORD_LENGTH, DIMENSION))
+x_train = np.expand_dims(x_train, axis=1)
+y_train = input_train[:, 0]
 print(x_train.shape)
 print(y_train.shape)
-x_test = input_test[:, :-1].reshape((input_test.shape[0], FIXED_WORD_LENGTH, DIM))
-y_test = input_test[:, -1]
+x_test = input_test[:, 3:].reshape((input_test.shape[0], FIXED_WORD_LENGTH, DIMENSION))
+x_test = np.expand_dims(x_test, axis=1)
+y_test = input_test[:, 0]
 print(x_test.shape)
 print(y_test.shape)
+print(y_train[0:5])
+print(y_test[0:5])
 
 x_train = x_train.astype(np.float32)
 y_train = y_train.astype(np.float32)
 x_test = x_test.astype(np.float32)
 y_test = y_test.astype(np.float32)
-
-# ctx = mx.gpu() if mx.test_utils.list_gpus() else mx.cpu()
-# # ctx = mx.gpu()
-# x_train = nd.array(x_train).as_in_context(ctx)
-# y_train = nd.array(y_train).as_in_context(ctx)
-# x_test = nd.array(x_test).as_in_context(ctx)
-# y_test = nd.array(y_test).as_in_context(ctx)
-# print(y_train.context, y_test.context)
-
-x_train = np.expand_dims(x_train, axis=1)
-x_test = np.expand_dims(x_test, axis=1)
 print(x_train.shape, x_test.shape)
 
 net = nn.Sequential()
@@ -46,10 +37,12 @@ net = nn.Sequential()
 # net.initialize(ctx=ctx, init=init.Xavier())
 
 # CNN
-net.add(nn.Conv2D(d_c, kernel_size=(k, DIM), padding=(1, 0), activation='relu'))
-net.add(nn.MaxPool2D(pool_size=(FIXED_WORD_LENGTH, 1)))
-net.add(nn.Dense(256, activation='relu'))
-net.add(nn.Dense(10, activation="relu"))
+# net.add(nn.Conv2D(d_c, kernel_size=(5, DIM), padding=(1, 0), activation='tanh'))
+net.add(nn.Conv2D(256, kernel_size=(5, DIMENSION), padding=(1, 0), activation='relu'))
+net.add(nn.MaxPool2D(pool_size=(FIXED_WORD_LENGTH - 2, 1)))
+net.add(nn.Dense(128, activation='relu'))
+net.add(nn.Dropout(0.5))
+net.add(nn.Dense(6))
 
 net.initialize(init=init.Xavier())
 # 初始化全链接层参数，使用均匀分布
@@ -60,9 +53,7 @@ print(net)
 batch_size = 128
 num_epochs = 50
 loss = gloss.SoftmaxCrossEntropyLoss()
-trainer = gluon.Trainer(net.collect_params(), 'AdaDelta',
-                        {'rho': 0.95, 'epsilon': 1e-6, 'wd': 0.001})
-
+trainer = gluon.Trainer(net.collect_params(), 'AdaDelta', {'rho': 0.95, 'epsilon': 1e-6, 'wd': 0.01})
 # trainer = gluon.Trainer(net.collect_params(), 'adam', {'learning_rate': 0.1})
 # trainer = gluon.Trainer(net.collect_params(), 'sgd', {'learning_rate': .01})
 
