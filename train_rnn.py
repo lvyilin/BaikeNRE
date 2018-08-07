@@ -1,3 +1,4 @@
+import time
 import numpy as np
 import mxnet as mx
 from mxnet import gluon, init, autograd, nd
@@ -5,17 +6,17 @@ from mxnet.gluon import loss as gloss, nn, rnn
 
 SENTENCE_DIMENSION = 100
 POS_DIMENSION = 5
-DIMENSION = SENTENCE_DIMENSION + 2 * POS_DIMENSION
+DIMENSION = SENTENCE_DIMENSION
 FIXED_WORD_LENGTH = 60
 
-input_train = np.load('data_train.npy')
-input_test = np.load('data_test.npy')
-x_train = input_train[:, 3:].reshape((input_train.shape[0], FIXED_WORD_LENGTH, DIMENSION))
+input_train = np.load('data_train_rnn.npy')
+input_test = np.load('data_test_rnn.npy')
+x_train = input_train[:, 1:].reshape((input_train.shape[0], FIXED_WORD_LENGTH, DIMENSION))
 # x_train = np.expand_dims(x_train, axis=1)
 y_train = input_train[:, 0]
 print(x_train.shape)
 print(y_train.shape)
-x_test = input_test[:, 3:].reshape((input_test.shape[0], FIXED_WORD_LENGTH, DIMENSION))
+x_test = input_test[:, 1:].reshape((input_test.shape[0], FIXED_WORD_LENGTH, DIMENSION))
 # x_test = np.expand_dims(x_test, axis=1)
 y_test = input_test[:, 0]
 print(x_test.shape)
@@ -29,19 +30,19 @@ print(x_train.shape, x_test.shape)
 
 net = nn.Sequential()
 # LSTM-RNN
-# net.add(mx.gluon.nn.Embedding(DIMENSION, 10))
-net.add(mx.gluon.rnn.LSTM(256))
-net.add(mx.gluon.nn.Dense(6, flatten=False))
+# net.add(mx.gluon.nn.Embedding(DIMENSION, DIMENSION))
+net.add(mx.gluon.rnn.LSTM(100, num_layers=1, dropout=0.2))
+net.add(mx.gluon.nn.Dense(6, flatten=True))
 
 net.initialize(init=init.Xavier())
 
 print(net)
 
 batch_size = 128
-num_epochs = 50
+num_epochs = 100
 loss = gloss.SoftmaxCrossEntropyLoss()
-trainer = gluon.Trainer(net.collect_params(), 'AdaDelta', {'rho': 0.95, 'epsilon': 1e-6, 'wd': 0.01})
-# trainer = gluon.Trainer(net.collect_params(), 'adam', {'learning_rate': 0.1})
+# trainer = gluon.Trainer(net.collect_params(), 'AdaDelta', {'rho': 0.95, 'epsilon': 1e-6, 'wd': 0.01})
+trainer = gluon.Trainer(net.collect_params(), 'adam', {'learning_rate': 0.0001})
 # trainer = gluon.Trainer(net.collect_params(), 'sgd', {'learning_rate': .01})
 
 train_data = gluon.data.DataLoader(gluon.data.ArrayDataset(x_train, y_train), batch_size, shuffle=True)
@@ -61,20 +62,22 @@ def evaluate_accuracy(data_iter, net):
 
 def train(net, train_iter, test_iter, loss, num_epochs, batch_size, trainer):
     for epoch in range(1, num_epochs + 1):
-        train_loss_sum = 0
+        train_l_sum = 0
         train_acc_sum = 0
+        start = time.time()
         for X, y in train_iter:
+            # print(X.shape)
             with autograd.record():
                 y_hat = net(X)
-                lss = loss(y_hat, y)
-            lss.backward()
+                l = loss(y_hat, y)
+            l.backward()
             trainer.step(batch_size)
-            train_loss_sum += lss.mean().asscalar()
+            train_l_sum += l.mean().asscalar()
             train_acc_sum += accuracy(y_hat, y)
         test_acc = evaluate_accuracy(test_iter, net)
-        print('epoch %d, loss %.4f, train acc %.3f, test acc %.3f'
-              % (epoch, train_loss_sum / len(train_iter),
-                 train_acc_sum / len(train_iter), test_acc))
+        print('epoch %d, loss %.4f, train acc %.3f, test acc %.3f time %.1f sec'
+              % (epoch, train_l_sum / len(train_iter),
+                 train_acc_sum / len(train_iter), test_acc, time.time() - start))
 
 
 train(net, train_data, test_data, loss, num_epochs, batch_size, trainer)
