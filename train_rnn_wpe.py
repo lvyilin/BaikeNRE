@@ -6,17 +6,17 @@ from mxnet import gluon, init, autograd, nd
 from mxnet.gluon import loss as gloss, nn, rnn
 
 SENTENCE_DIMENSION = 100
-DIMENSION = SENTENCE_DIMENSION
+DIMENSION = 110
 FIXED_WORD_LENGTH = 60
 
-input_train = np.load('data_train_rnn.npy')
-input_test = np.load('data_test_rnn.npy')
-x_train = input_train[:, 1:].reshape((input_train.shape[0], FIXED_WORD_LENGTH, DIMENSION))
+input_train = np.load('data_train.npy')
+input_test = np.load('data_test.npy')
+x_train = input_train[:, 3:].reshape((input_train.shape[0], FIXED_WORD_LENGTH, DIMENSION))
 # x_train = np.expand_dims(x_train, axis=1)
 y_train = input_train[:, 0]
 print(x_train.shape)
 print(y_train.shape)
-x_test = input_test[:, 1:].reshape((input_test.shape[0], FIXED_WORD_LENGTH, DIMENSION))
+x_test = input_test[:, 3:].reshape((input_test.shape[0], FIXED_WORD_LENGTH, DIMENSION))
 # x_test = np.expand_dims(x_test, axis=1)
 y_test = input_test[:, 0]
 print(x_test.shape)
