@@ -1,11 +1,11 @@
 import time
+import os
 import numpy as np
 import mxnet as mx
 from mxnet import gluon, init, autograd, nd
 from mxnet.gluon import loss as gloss, nn, rnn
 
 SENTENCE_DIMENSION = 100
-POS_DIMENSION = 5
 DIMENSION = SENTENCE_DIMENSION
 FIXED_WORD_LENGTH = 60
 
@@ -30,9 +30,8 @@ print(x_train.shape, x_test.shape)
 
 net = nn.Sequential()
 # LSTM-RNN
-# net.add(mx.gluon.nn.Embedding(DIMENSION, DIMENSION))
-net.add(mx.gluon.rnn.LSTM(100, num_layers=1, dropout=0.2))
-net.add(mx.gluon.nn.Dense(6, flatten=True))
+net.add(mx.gluon.rnn.GRU(64, num_layers=1, layout="NTC", bidirectional=True, dropout=0.2))
+net.add(mx.gluon.nn.Dense(6, flatten=False))
 
 net.initialize(init=init.Xavier())
 

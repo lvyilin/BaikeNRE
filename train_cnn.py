@@ -1,3 +1,5 @@
+import time
+
 import numpy as np
 import mxnet as mx
 from mxnet import gluon, init, autograd, nd
@@ -40,6 +42,7 @@ net = nn.Sequential()
 # net.add(nn.Conv2D(256, kernel_size=(5, DIMENSION), padding=(1, 0), activation='relu'))
 net.add(nn.Conv2D(256, kernel_size=(3, DIMENSION), padding=(1, 0), activation='relu'))
 # net.add(nn.MaxPool2D(pool_size=(FIXED_WORD_LENGTH - 2, 1)))
+
 net.add(nn.MaxPool2D(pool_size=(FIXED_WORD_LENGTH, 1)))
 net.add(nn.Dense(256, activation='relu'))
 net.add(nn.Dropout(0.5))
@@ -50,9 +53,10 @@ net.initialize(init=init.Xavier())
 print(net)
 
 batch_size = 128
-num_epochs = 50
+num_epochs = 100
 loss = gloss.SoftmaxCrossEntropyLoss()
 # trainer = gluon.Trainer(net.collect_params(), 'AdaDelta', {'rho': 0.95, 'epsilon': 1e-6, 'wd': 0.01})
+# trainer = gluon.Trainer(net.collect_params(), 'adam', {'learning_rate': 0.0001})
 trainer = gluon.Trainer(net.collect_params(), 'adam', {'learning_rate': 0.0001})
 # trainer = gluon.Trainer(net.collect_params(), 'sgd', {'learning_rate': .01})
 
@@ -75,6 +79,7 @@ def train(net, train_iter, test_iter, loss, num_epochs, batch_size, trainer):
     for epoch in range(1, num_epochs + 1):
         train_loss_sum = 0
         train_acc_sum = 0
+        start = time.time()
         for X, y in train_iter:
             with autograd.record():
                 y_hat = net(X)
@@ -84,9 +89,9 @@ def train(net, train_iter, test_iter, loss, num_epochs, batch_size, trainer):
             train_loss_sum += lss.mean().asscalar()
             train_acc_sum += accuracy(y_hat, y)
         test_acc = evaluate_accuracy(test_iter, net)
-        print('epoch %d, loss %.4f, train acc %.3f, test acc %.3f'
+        print('epoch %d, loss %.4f, train acc %.3f, test acc %.3f time %.1f sec'
               % (epoch, train_loss_sum / len(train_iter),
-                 train_acc_sum / len(train_iter), test_acc))
+                 train_acc_sum / len(train_iter), test_acc, time.time() - start))
 
 
 train(net, train_data, test_data, loss, num_epochs, batch_size, trainer)
