@@ -7,6 +7,7 @@ SENTENCE_CORPUS = os.path.join(CWD, "sentence_corpus.txt")
 
 SENTENCE_LABEL_CORPUS = os.path.join(CWD, "sentence_with_label_corpus.txt")
 sentence_set = set()
+sentence_list = []
 
 
 def sentence():
@@ -24,16 +25,20 @@ def sentence():
 def sentence_with_label():
     conn = sqlite3.connect('baike.db')
     c = conn.cursor()
-    c.execute("select entity_a,entity_b, sentence,relation from Data where relation!=0 and relation!=-1")
+    c.execute(
+        "select entity_a,entity_b, sentence,relation from Data where relation!=0 and relation!=-1"
+        " union"
+        " select entity_a,entity_b, sentence,relation from Data3 where relation!=0 and relation!=-1 "
+        "group by entity_a,entity_b, sentence")
     for row in c:
-        sentence_set.add(row[0] + "###" + row[1] + "###" + row[2] + "###" + str(row[3]))
+        sentence_list.append(row[0] + "###" + row[1] + "###" + row[2] + "###" + str(row[3]))
 
-    c.execute("select entity_a,entity_b, sentence,relation from Data3 where relation!=0 and relation!=-1")
-    for row in c:
-        sentence_set.add(row[0] + "###" + row[1] + "###" + row[2] + "###" + str(row[3]))
     with open(SENTENCE_LABEL_CORPUS, "w", encoding="utf8") as g:
-        for s in sentence_set:
-            g.write(s + "\n")
+        line_count = 0
+        for s in sentence_list:
+            # g.write("%d###%s\n" % (line_count, s))
+            g.write("%s\n" % s)
+            line_count += 1
 
 
 # sentence()

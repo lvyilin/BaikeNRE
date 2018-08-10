@@ -32,6 +32,7 @@ def sentence():
 def sentence_with_label():
     max_sep_word_len = 0
     with open(CORPUS_LABELED, "r", encoding="utf8") as f, open(SEP_CORPUS_LABELED, "w", encoding="utf8") as g:
+        line_count = 0
         for line in f:
             spl = line.split("###")
             t = [spl[0], spl[1], spl[3].strip()]
@@ -42,7 +43,8 @@ def sentence_with_label():
                 print("".join(words))
             for w in words:
                 t.append(str(w).strip())
-            g.write(" ".join(t) + "\n")
+            g.write("%d %s\n" % (line_count, " ".join(t)))
+            line_count += 1
     print("max sep word length: %d" % max_sep_word_len)
 
 
