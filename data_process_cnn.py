@@ -32,13 +32,17 @@ with open(CORPUS, "r", encoding="utf8") as f:
         sentence_vector = []
         entity_pos = []
         relative_pos = []
+        entity_a_pos_list = []  # 取实体a与实体b最接近的位置
+        entity_b_pos_list = []
         entity_a_pos = -1
         entity_b_pos = -1
         for i in range(len(sentence)):
             if sentence[i] == entity_a:
-                entity_a_pos = i
+                entity_a_pos_list.append(i)
+                # entity_a_pos = i
             if sentence[i] == entity_b:
-                entity_b_pos = i
+                entity_b_pos_list.append(i)
+                # entity_b_pos = i
 
             if sentence[i] not in wordvec:
                 word_vector = wordvec['UNK']
@@ -46,6 +50,13 @@ with open(CORPUS, "r", encoding="utf8") as f:
                 word_vector = wordvec[sentence[i]]
             sentence_vector.append(word_vector)
 
+        d_pos = FIXED_WORD_LENGTH
+        for i in entity_a_pos_list:
+            for j in entity_b_pos_list:
+                if abs(i - j) < d_pos:
+                    d_pos = abs(i - j)
+                    entity_a_pos = i
+                    entity_b_pos = j
         exception_flag = False
         if entity_a_pos == -1 or entity_b_pos == -1:
             print(
