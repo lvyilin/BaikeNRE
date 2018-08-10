@@ -19,10 +19,10 @@ output_relation = []
 with open(CORPUS, "r", encoding="utf8") as f:
     for line in f:
         content = line.strip().split()
-        entity_a = content[0]
-        entity_b = content[1]
-        relation = content[2]
-        sentence = content[3:]
+        entity_a = content[1]
+        entity_b = content[2]
+        relation = content[3]
+        sentence = content[4:]
 
         sentence_vector = []
 
