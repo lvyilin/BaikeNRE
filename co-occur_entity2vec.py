@@ -11,6 +11,7 @@ DIMENSION = 100
 POS_DIMENSION = 5
 FIXED_WORD_LENGTH = 60
 MAX_ENTITY_DEGREE = 50
+ENTITY_DEGREE = MAX_ENTITY_DEGREE + 1
 conn = sqlite3.connect('baike.db')
 c = conn.cursor()
 
@@ -56,18 +57,21 @@ for entity in entity_set:
             output_entity_vec.append(wordvec[neighbor_entity])
     output_edge_vec = []
     for i in range(len(output_entity_vec)):
+        # edge_vec =  neigh + self
         edge_vec = np.concatenate((output_entity_vec[i], output_entity_vec[0]))
         output_edge_vec.append(edge_vec)
-    if len(output_edge_vec) < MAX_ENTITY_DEGREE + 1:
-        for i in range(MAX_ENTITY_DEGREE + 1 - len(output_edge_vec)):
+
+    mask = np.concatenate((np.ones(len(output_edge_vec)), np.zeros(ENTITY_DEGREE - len(output_edge_vec))))
+    if len(output_edge_vec) < ENTITY_DEGREE:
+        for i in range(ENTITY_DEGREE - len(output_edge_vec)):
             output_edge_vec.append(np.zeros(output_edge_vec[0].shape))
     np_output_edge_vec = np.array(output_edge_vec, dtype=float).reshape(-1)
-    entityvec_dict[entity] = np_output_edge_vec
+    # mask + edge_vec
+    entityvec_dict[entity] = np.concatenate((mask, np_output_edge_vec))
 
-with open("entity2vec_key.txt","w",encoding="utf8") as f:
+with open("entity2vec_key.txt", "w", encoding="utf8") as f:
     for k in entityvec_dict.keys():
-        f.write(k+"\n")
+        f.write(k + "\n")
 
-vals = np.fromiter(entityvec_dict.values(), dtype=float)
-np.save("entity2vec_value.npy",vals)
-
+vals = np.array(list(entityvec_dict.values()), dtype=float)
+np.save("entity2vec_value.npy", vals)

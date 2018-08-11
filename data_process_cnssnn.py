@@ -116,15 +116,15 @@ np_sentence = np.array(output_sentence, dtype=float)
 np_relation = np.array(output_relation, dtype=int)
 np_entity_pos = np.array(output_entity_pos, dtype=int)
 np_relative_pos = np.array(output_relative_pos, dtype=float)
-np_en1_vec = np.array(output_en1_vec,dtype=float)
-np_en2_vec = np.array(output_en2_vec,dtype=float)
+np_en1_vec = np.array(output_en1_vec, dtype=float)
+np_en2_vec = np.array(output_en2_vec, dtype=float)
 
 print(np_sentence.shape)
 print(np_relative_pos.shape)
 print(np_entity_pos.shape)
 print(np_en1_vec.shape)
 print(np_en2_vec.shape)
-np_entity_vec = np.concatenate((np_en1_vec,np_en2_vec),axis=1)
+np_entity_vec = np.concatenate((np_en1_vec, np_en2_vec), axis=1)
 
 np_sentence_matrix = np.concatenate((np_sentence, np_relative_pos), axis=2)
 print(np_sentence_matrix.shape)
@@ -133,7 +133,7 @@ sentence_vec = np_sentence_matrix.reshape(np_sentence_matrix.shape[0],
 entity_pos_vec = np_entity_pos.reshape(np_entity_pos.shape[0], 2)
 
 # relation + entity position + sentence_vec
-conc = np.concatenate((np.expand_dims(np_relation, axis=1), entity_pos_vec, sentence_vec,np_entity_vec), axis=1)
+conc = np.concatenate((np.expand_dims(np_relation, axis=1), entity_pos_vec, sentence_vec, np_entity_vec), axis=1)
 print(conc.shape)
 
 tag_1 = conc[conc[:, 0] == 1]
