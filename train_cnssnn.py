@@ -54,7 +54,7 @@ def evaluate_accuracy(data_iter, net):
 
 decay_rate = 0.1
 epochs = 200
-gap = 25
+gap = 50
 
 
 def train(net, train_iter, test_iter):
