@@ -43,11 +43,10 @@ output_en2_vec = []
 with open(CORPUS, "r", encoding="utf8") as f:
     for line in f:
         content = line.strip().split()
-        idx = content[0]
-        entity_a = content[1]
-        entity_b = content[2]
-        relation = content[3]
-        sentence = content[4:]
+        entity_a = content[0]
+        entity_b = content[1]
+        relation = content[2]
+        sentence = content[3:]
 
         sentence_vector = []
         entity_pos = []
