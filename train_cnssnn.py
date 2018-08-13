@@ -124,7 +124,7 @@ class Network(nn.Block):
         att = self.center_att
         e1edge = nd.tanh(e1edge)
         e1g = att(e1edge)  # (m,51,1)
-        e1g = e1g * e1neimask.expand_dims(2)  # 再次去掉非0值 TODO:检查是否必要
+        e1g = e1g * e1neimask.expand_dims(2)
         e1g = nd.softmax(e1g, axis=1)
         e1gt = nd.transpose(e1g, axes=(0, 2, 1))  # (m,1,151)
         e1n = nd.batch_dot(e1gt, e1neigh)  # (m,1,100)
@@ -132,7 +132,7 @@ class Network(nn.Block):
 
         e2edge = nd.tanh(e2edge)
         e2g = att(e2edge)  # (m,51,1)
-        e2g = e2g * e2neimask.expand_dims(2)  # 再次去掉非0值 TODO:检查是否必要
+        e2g = e2g * e2neimask.expand_dims(2)
         e2g = nd.softmax(e2g, axis=1)
         e2gt = nd.transpose(e2g, axes=(0, 2, 1))  # (m,1,151)
         e2n = nd.batch_dot(e2gt, e2neigh)  # (m,1,100)
