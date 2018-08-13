@@ -14,6 +14,7 @@ ENTITY_DEGREE = MAX_ENTITY_DEGREE + 1
 MASK_LENGTH = ENTITY_DEGREE
 ENTITY_EDGE_VEC_LENGTH = ENTITY_DEGREE * (WORD_DIMENSION * 2)
 VEC_LENGTH = DIMENSION * FIXED_WORD_LENGTH + ENTITY_EDGE_VEC_LENGTH * 2
+ADAPTIVE_LEARNING_RATE = True
 
 input_train = np.load('data_train_cnssnn.npy')
 input_test = np.load('data_test_cnssnn.npy')
@@ -58,11 +59,11 @@ gap = 50
 
 
 def train(net, train_iter, test_iter):
-    for epoch in range(epochs):
+    for epoch in range(1, epochs + 1):
         train_loss_sum = 0
         train_acc_sum = 0
         start = time.time()
-        if (epoch + 1) % gap == 0:
+        if ADAPTIVE_LEARNING_RATE and epoch % gap == 0:
             trainer.set_learning_rate(trainer.learning_rate * decay_rate)
             print("learning_rate decay: %f" % trainer.learning_rate)
         for X, y in train_iter:
@@ -150,5 +151,8 @@ class Network(nn.Block):
 
 net = Network()
 net.initialize()
-trainer = gluon.Trainer(net.collect_params(), 'adam', {'beta1': 0.9, 'beta2': 0.99, 'learning_rate': 1e-2})
+if ADAPTIVE_LEARNING_RATE:
+    trainer = gluon.Trainer(net.collect_params(), 'adam', {'beta1': 0.9, 'beta2': 0.99, 'learning_rate': 1e-2})
+else:
+    trainer = gluon.Trainer(net.collect_params(), 'adam', {'learning_rate': 0.0001})
 train(net, train_data, test_data)

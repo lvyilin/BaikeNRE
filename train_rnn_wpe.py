@@ -8,6 +8,7 @@ from mxnet.gluon import loss as gloss, nn, rnn
 SENTENCE_DIMENSION = 100
 DIMENSION = 110
 FIXED_WORD_LENGTH = 60
+ADAPTIVE_LEARNING_RATE = True
 
 input_train = np.load('data_train.npy')
 input_test = np.load('data_test.npy')
@@ -28,21 +29,36 @@ x_test = x_test.astype(np.float32)
 y_test = y_test.astype(np.float32)
 print(x_train.shape, x_test.shape)
 
-net = nn.Sequential()
-# LSTM-RNN
-net.add(mx.gluon.rnn.GRU(64, num_layers=1, layout="NTC", bidirectional=True, dropout=0.2))
-net.add(mx.gluon.nn.Dense(6, flatten=True))
 
+class Network(nn.Block):
+    def __init__(self, prefix=None, params=None):
+        super().__init__(prefix, params)
+
+        self.gru = rnn.GRU(64, num_layers=1, bidirectional=True, dropout=0.2)
+        self.output = nn.Dense(6)
+
+    def forward(self, input_data):
+        x = nd.transpose(input_data, axes=(1, 0, 2))
+        h = nd.transpose(self.gru(x), axes=(1, 0, 2))
+        return self.output(h)
+
+
+net = Network()
 net.initialize(init=init.Xavier())
 
 print(net)
 
 batch_size = 128
 num_epochs = 100
+decay_rate = 0.1
+gap = 25
 loss = gloss.SoftmaxCrossEntropyLoss()
 # trainer = gluon.Trainer(net.collect_params(), 'AdaDelta', {'rho': 0.95, 'epsilon': 1e-6, 'wd': 0.01})
-trainer = gluon.Trainer(net.collect_params(), 'adam', {'learning_rate': 0.0001})
 # trainer = gluon.Trainer(net.collect_params(), 'sgd', {'learning_rate': .01})
+if ADAPTIVE_LEARNING_RATE:
+    trainer = gluon.Trainer(net.collect_params(), 'adam', {'learning_rate': 0.01})
+else:
+    trainer = gluon.Trainer(net.collect_params(), 'adam', {'learning_rate': 0.0001})
 
 train_data = gluon.data.DataLoader(gluon.data.ArrayDataset(x_train, y_train), batch_size, shuffle=True)
 test_data = gluon.data.DataLoader(gluon.data.ArrayDataset(x_test, y_test), batch_size, shuffle=False)
@@ -63,6 +79,9 @@ def train(net, train_iter, test_iter, loss, num_epochs, batch_size, trainer):
     for epoch in range(1, num_epochs + 1):
         train_l_sum = 0
         train_acc_sum = 0
+        if ADAPTIVE_LEARNING_RATE and epoch % gap == 0:
+            trainer.set_learning_rate(trainer.learning_rate * decay_rate)
+            print("learning_rate decay: %f" % trainer.learning_rate)
         start = time.time()
         for X, y in train_iter:
             # print(X.shape)

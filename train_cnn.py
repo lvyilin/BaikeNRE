@@ -9,6 +9,7 @@ SENTENCE_DIMENSION = 100
 POS_DIMENSION = 5
 DIMENSION = SENTENCE_DIMENSION + 2 * POS_DIMENSION
 FIXED_WORD_LENGTH = 60
+ADAPTIVE_LEARNING_RATE = False
 
 input_train = np.load('data_train.npy')
 input_test = np.load('data_test.npy')
@@ -54,11 +55,16 @@ print(net)
 
 batch_size = 128
 num_epochs = 100
+decay_rate = 0.1
+gap = 25
 loss = gloss.SoftmaxCrossEntropyLoss()
 # trainer = gluon.Trainer(net.collect_params(), 'AdaDelta', {'rho': 0.95, 'epsilon': 1e-6, 'wd': 0.01})
 # trainer = gluon.Trainer(net.collect_params(), 'adam', {'learning_rate': 0.0001})
-trainer = gluon.Trainer(net.collect_params(), 'adam', {'learning_rate': 0.0001})
 # trainer = gluon.Trainer(net.collect_params(), 'sgd', {'learning_rate': .01})
+if ADAPTIVE_LEARNING_RATE:
+    trainer = gluon.Trainer(net.collect_params(), 'adam', {'learning_rate': 0.01})
+else:
+    trainer = gluon.Trainer(net.collect_params(), 'adam', {'learning_rate': 0.0001})
 
 train_data = gluon.data.DataLoader(gluon.data.ArrayDataset(x_train, y_train), batch_size, shuffle=True)
 test_data = gluon.data.DataLoader(gluon.data.ArrayDataset(x_test, y_test), batch_size, shuffle=False)
@@ -79,6 +85,9 @@ def train(net, train_iter, test_iter, loss, num_epochs, batch_size, trainer):
     for epoch in range(1, num_epochs + 1):
         train_loss_sum = 0
         train_acc_sum = 0
+        if ADAPTIVE_LEARNING_RATE and epoch % gap == 0:
+            trainer.set_learning_rate(trainer.learning_rate * decay_rate)
+            print("learning_rate decay: %f" % trainer.learning_rate)
         start = time.time()
         for X, y in train_iter:
             with autograd.record():
