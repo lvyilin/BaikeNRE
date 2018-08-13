@@ -5,7 +5,7 @@ import os
 
 CWD = os.getcwd()
 WORDVEC = CWD + "\\wordvectors.kv"
-CORPUS = CWD + "\\separated_corpus_with_label_patch.txt"
+CORPUS = CWD + "\\separated_corpus_with_label_patch_id.txt"
 DIMENSION = 100
 POS_DIMENSION = 5
 FIXED_WORD_LENGTH = 60
@@ -33,6 +33,7 @@ wordvec['BLANK'] = np.zeros(DIMENSION)
 
 POS_VECTOR = np.random.random((FIXED_WORD_LENGTH * 2, POS_DIMENSION))
 
+output_idx = []
 output_entity_pos = []
 output_relative_pos = []
 output_sentence = []
@@ -43,10 +44,11 @@ output_en2_vec = []
 with open(CORPUS, "r", encoding="utf8") as f:
     for line in f:
         content = line.strip().split()
-        entity_a = content[0]
-        entity_b = content[1]
-        relation = content[2]
-        sentence = content[3:]
+        idx = content[0]
+        entity_a = content[1]
+        entity_b = content[2]
+        relation = content[3]
+        sentence = content[4:]
 
         sentence_vector = []
         entity_pos = []
@@ -102,6 +104,7 @@ with open(CORPUS, "r", encoding="utf8") as f:
                 pos_vec = np.concatenate((POS_VECTOR[FIXED_WORD_LENGTH, :], POS_VECTOR[FIXED_WORD_LENGTH, :]))
                 relative_pos.append(pos_vec)
 
+        output_idx.append(idx)
         output_sentence.append(sentence_vector)
         output_relation.append(relation)
         output_entity_pos.append(entity_pos)
@@ -111,6 +114,7 @@ with open(CORPUS, "r", encoding="utf8") as f:
 
 print("length of output_sentence: %d" % len(output_sentence))
 
+np_idx = np.array(output_idx, dtype=int)
 np_sentence = np.array(output_sentence, dtype=float)
 np_relation = np.array(output_relation, dtype=int)
 np_entity_pos = np.array(output_entity_pos, dtype=int)
@@ -132,7 +136,9 @@ sentence_vec = np_sentence_matrix.reshape(np_sentence_matrix.shape[0],
 entity_pos_vec = np_entity_pos.reshape(np_entity_pos.shape[0], 2)
 
 # relation + entity position + sentence_vec
-conc = np.concatenate((np.expand_dims(np_relation, axis=1), entity_pos_vec, sentence_vec, np_entity_vec), axis=1)
+conc = np.concatenate(
+    (np.expand_dims(np_relation, axis=1), np.expand_dims(np_idx, axis=1), entity_pos_vec, sentence_vec, np_entity_vec),
+    axis=1)
 print(conc.shape)
 
 tag_1 = conc[conc[:, 0] == 1]
@@ -191,5 +197,5 @@ print(filter_test.shape)
 
 np.random.shuffle(filter_train)
 np.random.shuffle(filter_test)
-np.save('data_train_cnssnn.npy', filter_train)
-np.save('data_test_cnssnn.npy', filter_test)
+np.save('data_train_cnssnn_id.npy', filter_train)
+np.save('data_test_cnssnn_id.npy', filter_test)
