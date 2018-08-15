@@ -100,6 +100,8 @@ class Network(nn.Block):
             self.output.add(nn.Dense(6))
 
     def forward(self, input_data):
+        freq = input_data[0]
+        input_data = input_data[1:]
         e1_vec_start = FIXED_WORD_LENGTH * DIMENSION
         x = input_data[:, :e1_vec_start].reshape(
             (input_data.shape[0], FIXED_WORD_LENGTH, DIMENSION))  # (m, 60, 110)
@@ -123,7 +125,7 @@ class Network(nn.Block):
         y1 = gru_out(ht.expand_dims(1))  # (m,200)
 
         att = self.center_att
-        e1edge = nd.tanh(e1edge)
+        e1edge = nd.tanh(e1edge * freq)
         e1g = att(e1edge)  # (m,51,1)
         e1g = e1g * e1neimask.expand_dims(2)
         e1g = nd.softmax(e1g, axis=1)
