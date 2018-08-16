@@ -35,7 +35,9 @@ y_test = y_test.astype(np.float32)
 print(x_train.shape, x_test.shape)
 
 batch_size = 128
-num_epochs = 100
+decay_rate = 0.1
+epochs = 200
+gap = 50
 loss = gloss.SoftmaxCrossEntropyLoss()
 
 train_data = gluon.data.DataLoader(gluon.data.ArrayDataset(x_train, y_train), batch_size, shuffle=True)
@@ -51,11 +53,6 @@ def evaluate_accuracy(data_iter, net):
     for X, y in data_iter:
         acc += accuracy(net(X), y)
     return acc / len(data_iter)
-
-
-decay_rate = 0.1
-epochs = 200
-gap = 50
 
 
 def train(net, train_iter, test_iter):
