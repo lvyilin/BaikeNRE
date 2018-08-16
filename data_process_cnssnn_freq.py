@@ -34,14 +34,25 @@ def get_freq(en1, en2):
     c.execute(
         '''
         select sum(number)
-        from (select count(*) as number from Data where entity_a in (?, ?)
-                                                     or entity_b in (?, ?)
+        from (select count(*) as number from Data where entity_a=?
+                                                     or entity_b=?
               union
-              select count(*) as number from Data3 where entity_a in (?, ?)
-                                                      or entity_b in (?, ?))
+              select count(*) as number from Data3 where entity_a=?
+                                                      or entity_b=?)
         ''',
-        (en1, en2, en1, en2, en1, en2, en1, en2))
-    total_degree = c.fetchall()[0][0]
+        (en1, en1, en1, en1))
+    total_degree1 = c.fetchall()[0][0]
+    c.execute(
+        '''
+        select sum(number)
+        from (select count(*) as number from Data where entity_a=?
+                                                     or entity_b=?
+              union
+              select count(*) as number from Data3 where entity_a=?
+                                                      or entity_b=?)
+        ''',
+        (en2, en2, en2, en2))
+    total_degree2 = c.fetchall()[0][0]
     c.execute(
         '''
         select sum(number)
@@ -57,7 +68,8 @@ def get_freq(en1, en2):
         ''',
         (en1, en2, en1, en2, en1, en2, en1, en2))
     pair_degree = c.fetchall()[0][0]
-    return float(pair_degree / total_degree)
+    print("(%f, %f)" % (float(pair_degree / total_degree1), float(pair_degree / total_degree2)))
+    return float(pair_degree / total_degree1), float(pair_degree / total_degree2)
 
 
 wordvec = KeyedVectors.load(WORDVEC, mmap='r')
@@ -165,10 +177,11 @@ print(np_sentence_matrix.shape)
 sentence_vec = np_sentence_matrix.reshape(np_sentence_matrix.shape[0],
                                           (DIMENSION + 2 * POS_DIMENSION) * FIXED_WORD_LENGTH)
 entity_pos_vec = np_entity_pos.reshape(np_entity_pos.shape[0], 2)
-
+np_freq = np_freq.reshape(np_freq.shape[0], 2)
+print(np_freq)
 # relation + entity position + sentence_vec
 conc = np.concatenate(
-    (np.expand_dims(np_relation, axis=1), entity_pos_vec, np.expand_dims(np_freq, axis=1), sentence_vec, np_entity_vec),
+    (np.expand_dims(np_relation, axis=1), entity_pos_vec, np_freq, sentence_vec, np_entity_vec),
     axis=1)
 print(conc.shape)
 
