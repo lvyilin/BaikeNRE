@@ -5,10 +5,12 @@ import mxnet as mx
 from mxnet import gluon, init, autograd, nd
 from mxnet.gluon import loss as gloss, nn, rnn
 
+CWD = os.getcwd()
+SAVE_MODEL_PATH = CWD + "\\net_params\\gru_att\\net_gru_att_epoch%d.params"
 SENTENCE_DIMENSION = 100
 DIMENSION = SENTENCE_DIMENSION
 FIXED_WORD_LENGTH = 60
-ADAPTIVE_LEARNING_RATE = True
+ADAPTIVE_LEARNING_RATE = False
 
 input_train = np.load('data_train_rnn.npy')
 input_test = np.load('data_test_rnn.npy')
@@ -109,6 +111,7 @@ def train(net, train_iter, test_iter, loss, num_epochs, batch_size, trainer):
         print('epoch %d, loss %.4f, train acc %.3f, test acc %.3f time %.1f sec'
               % (epoch, train_l_sum / len(train_iter),
                  train_acc_sum / len(train_iter), test_acc, time.time() - start))
+        net.save_parameters(SAVE_MODEL_PATH % epoch)
 
 
 train(net, train_data, test_data, loss, num_epochs, batch_size, trainer)

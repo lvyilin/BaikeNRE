@@ -1,10 +1,12 @@
+import os
 import time
 
 import numpy as np
-import mxnet as mx
-from mxnet import gluon, init, autograd, nd
-from mxnet.gluon import loss as gloss, nn, rnn
+from mxnet import gluon, init, autograd
+from mxnet.gluon import loss as gloss, nn
 
+CWD = os.getcwd()
+SAVE_MODEL_PATH = CWD + "\\net_params\\cnn\\net_cnn_epoch%d.params"
 SENTENCE_DIMENSION = 100
 POS_DIMENSION = 5
 DIMENSION = SENTENCE_DIMENSION + 2 * POS_DIMENSION
@@ -80,7 +82,6 @@ def evaluate_accuracy(data_iter, net):
         acc += accuracy(net(X), y)
     return acc / len(data_iter)
 
-
 def train(net, train_iter, test_iter, loss, num_epochs, batch_size, trainer):
     for epoch in range(1, num_epochs + 1):
         train_loss_sum = 0
@@ -101,6 +102,7 @@ def train(net, train_iter, test_iter, loss, num_epochs, batch_size, trainer):
         print('epoch %d, loss %.4f, train acc %.3f, test acc %.3f time %.1f sec'
               % (epoch, train_loss_sum / len(train_iter),
                  train_acc_sum / len(train_iter), test_acc, time.time() - start))
+        net.save_parameters(SAVE_MODEL_PATH % epoch)
 
 
 train(net, train_data, test_data, loss, num_epochs, batch_size, trainer)

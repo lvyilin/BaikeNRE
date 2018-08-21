@@ -1,10 +1,12 @@
+import os
 import time
 
 import numpy as np
-import mxnet as mx
-from mxnet import gluon, init, autograd, nd
+from mxnet import gluon, autograd, nd
 from mxnet.gluon import loss as gloss, nn, rnn
 
+CWD = os.getcwd()
+SAVE_MODEL_PATH = CWD + "\\net_params\\cnssnn\\net_cnssnn_epoch%d.params"
 WORD_DIMENSION = 100
 POS_DIMENSION = 5
 DIMENSION = WORD_DIMENSION + 2 * POS_DIMENSION
@@ -14,7 +16,7 @@ ENTITY_DEGREE = MAX_ENTITY_DEGREE + 1
 MASK_LENGTH = ENTITY_DEGREE
 ENTITY_EDGE_VEC_LENGTH = ENTITY_DEGREE * (WORD_DIMENSION * 2)
 VEC_LENGTH = DIMENSION * FIXED_WORD_LENGTH + ENTITY_EDGE_VEC_LENGTH * 2
-ADAPTIVE_LEARNING_RATE = True
+ADAPTIVE_LEARNING_RATE = False
 
 input_train = np.load('data_train_cnssnn.npy')
 input_test = np.load('data_test_cnssnn.npy')
@@ -34,8 +36,11 @@ x_test = x_test.astype(np.float32)
 y_test = y_test.astype(np.float32)
 print(x_train.shape, x_test.shape)
 
+decay_rate = 0.1
+epochs = 200
+gap = 50
+
 batch_size = 128
-num_epochs = 100
 loss = gloss.SoftmaxCrossEntropyLoss()
 
 train_data = gluon.data.DataLoader(gluon.data.ArrayDataset(x_train, y_train), batch_size, shuffle=True)
@@ -51,11 +56,6 @@ def evaluate_accuracy(data_iter, net):
     for X, y in data_iter:
         acc += accuracy(net(X), y)
     return acc / len(data_iter)
-
-
-decay_rate = 0.1
-epochs = 200
-gap = 50
 
 
 def train(net, train_iter, test_iter):
@@ -78,6 +78,7 @@ def train(net, train_iter, test_iter):
         print('epoch %d, loss %.4f, train acc %.3f, test acc %.3f time %.1f sec'
               % (epoch, train_loss_sum / len(train_iter),
                  train_acc_sum / len(train_iter), test_acc, time.time() - start))
+        net.save_parameters(SAVE_MODEL_PATH % epoch)
 
 
 class Network(nn.Block):

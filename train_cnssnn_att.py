@@ -1,3 +1,4 @@
+import os
 import time
 
 import numpy as np
@@ -5,6 +6,8 @@ import mxnet as mx
 from mxnet import gluon, init, autograd, nd
 from mxnet.gluon import loss as gloss, nn, rnn
 
+CWD = os.getcwd()
+SAVE_MODEL_PATH = CWD + "\\net_params\\cnssnn_att\\net_cnssnn_att_epoch%d.params"
 WORD_DIMENSION = 100
 POS_DIMENSION = 5
 DIMENSION = WORD_DIMENSION + 2 * POS_DIMENSION
@@ -14,7 +17,7 @@ ENTITY_DEGREE = MAX_ENTITY_DEGREE + 1
 MASK_LENGTH = ENTITY_DEGREE
 ENTITY_EDGE_VEC_LENGTH = ENTITY_DEGREE * (WORD_DIMENSION * 2)
 VEC_LENGTH = DIMENSION * FIXED_WORD_LENGTH + ENTITY_EDGE_VEC_LENGTH * 2
-ADAPTIVE_LEARNING_RATE = True
+ADAPTIVE_LEARNING_RATE = False
 
 input_train = np.load('data_train_cnssnn.npy')
 input_test = np.load('data_test_cnssnn.npy')
@@ -78,6 +81,7 @@ def train(net, train_iter, test_iter):
         print('epoch %d, loss %.4f, train acc %.3f, test acc %.3f time %.1f sec'
               % (epoch, train_loss_sum / len(train_iter),
                  train_acc_sum / len(train_iter), test_acc, time.time() - start))
+        net.save_parameters(SAVE_MODEL_PATH % epoch)
 
 
 class Network(nn.Block):
