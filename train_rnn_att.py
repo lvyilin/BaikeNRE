@@ -10,7 +10,7 @@ SAVE_MODEL_PATH = CWD + "\\net_params\\gru_att\\net_gru_att_epoch%d.params"
 SENTENCE_DIMENSION = 100
 DIMENSION = SENTENCE_DIMENSION
 FIXED_WORD_LENGTH = 60
-ADAPTIVE_LEARNING_RATE = False
+ADAPTIVE_LEARNING_RATE = True
 
 input_train = np.load('data_train_rnn.npy')
 input_test = np.load('data_test_rnn.npy')

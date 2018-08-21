@@ -10,7 +10,7 @@ SAVE_MODEL_PATH = CWD + "\\net_params\\gru_wpe\\net_gru_wpe_epoch%d.params"
 SENTENCE_DIMENSION = 100
 DIMENSION = 110
 FIXED_WORD_LENGTH = 60
-ADAPTIVE_LEARNING_RATE = False
+ADAPTIVE_LEARNING_RATE = True
 
 input_train = np.load('data_train.npy')
 input_test = np.load('data_test.npy')
