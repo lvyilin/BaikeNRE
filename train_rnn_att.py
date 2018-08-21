@@ -49,11 +49,11 @@ class Network(nn.Block):
 
     def forward(self, input_data):
         x = nd.transpose(input_data, axes=(1, 0, 2))
-        h = nd.transpose(self.gru(x), axes=(1, 0, 2)) #(m,60,100)
+        h = nd.transpose(self.gru(x), axes=(1, 0, 2))  # (m,60,100)
         h = nd.tanh(h)
-        g = self.att(h) #(m,60,1)
-        g=nd.softmax(g, axis=1)
-        gt = nd.transpose(g, axes=(0, 2, 1)) #(m,1,60)
+        g = self.att(h)  # (m,60,1)
+        g = nd.softmax(g, axis=1)
+        gt = nd.transpose(g, axes=(0, 2, 1))  # (m,1,60)
         n = nd.batch_dot(gt, h)
         y = self.att_out(n)
         return self.output(y)
