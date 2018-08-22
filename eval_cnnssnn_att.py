@@ -17,25 +17,16 @@ MASK_LENGTH = ENTITY_DEGREE
 ENTITY_EDGE_VEC_LENGTH = ENTITY_DEGREE * (WORD_DIMENSION * 2)
 VEC_LENGTH = DIMENSION * FIXED_WORD_LENGTH + ENTITY_EDGE_VEC_LENGTH * 2
 
-input_train = np.load('data_train_cnssnn.npy')
-input_test = np.load('data_train_cnssnn.npy')
-x_train = input_train[:, 3:]
-y_train = input_train[:, 0]
-print(x_train.shape)
-print(y_train.shape)
+input_test = np.load('data_test_cnssnn.npy')
 x_test = input_test[:, 3:]
 y_test = input_test[:, 0]
 print(x_test.shape)
 print(y_test.shape)
 
-x_train = x_train.astype(np.float32)
-y_train = y_train.astype(np.float32)
 x_test = x_test.astype(np.float32)
 y_test = y_test.astype(np.float32)
-print(x_train.shape, x_test.shape)
-
-x_all = np.concatenate((x_train, x_test), axis=0)
-y_all = np.concatenate((y_train, y_test), axis=0)
+x_all = x_test
+y_all = y_test
 x_all = x_all.astype(np.float32)
 y_all = y_all.astype(np.int)
 print(x_all.shape, y_all.shape)
