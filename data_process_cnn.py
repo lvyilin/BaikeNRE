@@ -26,7 +26,7 @@ with open(CORPUS, "r", encoding="utf8") as f:
         content = line.strip().split()
         entity_a = content[0]
         entity_b = content[1]
-        relation = content[2]
+        relation = int(content[2])
         sentence = content[3:]
 
         sentence_vector = []
@@ -71,6 +71,8 @@ with open(CORPUS, "r", encoding="utf8") as f:
             exception_flag = True
             # exit(1)
         if exception_flag:
+            if relation == -1:
+                continue
             exit(1)
         for i in range(len(sentence)):
             relative_vector_entity_a = POS_VECTOR[i - entity_a_pos, :]
@@ -118,47 +120,44 @@ tag_7 = conc[conc[:, 0] == 7]
 tag_8 = conc[conc[:, 0] == 8]
 tag_9 = conc[conc[:, 0] == 9]
 tag_10 = conc[conc[:, 0] == 10]
-
-tag_1[:, 0] = 0
-tag_3[:, 0] = 1
-tag_4[:, 0] = 2
-tag_6[:, 0] = 3
-tag_7[:, 0] = 4
-tag_9[:, 0] = 5
+tag_0 = conc[conc[:, 0] == -1]
+tag_0[:, 0] = 0
 
 tag_1_train = tag_1[:int(TRAIN_RADIO * len(tag_1))]
 tag_1_test = tag_1[int(TRAIN_RADIO * len(tag_1)):]
-# tag_2_train = tag_2[:int(TRAIN_RADIO * len(tag_2))]
-# tag_2_test = tag_2[int(TRAIN_RADIO * len(tag_2)):]
+tag_2_train = tag_2[:int(TRAIN_RADIO * len(tag_2))]
+tag_2_test = tag_2[int(TRAIN_RADIO * len(tag_2)):]
 tag_3_train = tag_3[:int(TRAIN_RADIO * len(tag_3))]
 tag_3_test = tag_3[int(TRAIN_RADIO * len(tag_3)):]
 tag_4_train = tag_4[:int(TRAIN_RADIO * len(tag_4))]
 tag_4_test = tag_4[int(TRAIN_RADIO * len(tag_4)):]
-# tag_5_train = tag_5[:int(TRAIN_RADIO * len(tag_5))]
-# tag_5_test = tag_5[int(TRAIN_RADIO * len(tag_5)):]
+tag_5_train = tag_5[:int(TRAIN_RADIO * len(tag_5))]
+tag_5_test = tag_5[int(TRAIN_RADIO * len(tag_5)):]
 tag_6_train = tag_6[:int(TRAIN_RADIO * len(tag_6))]
 tag_6_test = tag_6[int(TRAIN_RADIO * len(tag_6)):]
 tag_7_train = tag_7[:int(TRAIN_RADIO * len(tag_7))]
 tag_7_test = tag_7[int(TRAIN_RADIO * len(tag_7)):]
-# tag_8_train = tag_8[:int(TRAIN_RADIO * len(tag_8))]
-# tag_8_test = tag_8[int(TRAIN_RADIO * len(tag_8)):]
+tag_8_train = tag_8[:int(TRAIN_RADIO * len(tag_8))]
+tag_8_test = tag_8[int(TRAIN_RADIO * len(tag_8)):]
 tag_9_train = tag_9[:int(TRAIN_RADIO * len(tag_9))]
 tag_9_test = tag_9[int(TRAIN_RADIO * len(tag_9)):]
-# tag_10_train = tag_10[:int(TRAIN_RADIO * len(tag_10))]
-# tag_10_test = tag_10[int(TRAIN_RADIO * len(tag_10)):]
-filter_train = np.concatenate((
-    tag_1_train, tag_3_train, tag_4_train, tag_6_train, tag_7_train,
-    tag_9_train), axis=0)
-filter_test = np.concatenate((
-    tag_1_test, tag_3_test, tag_4_test, tag_6_test, tag_7_test,
-    tag_9_test), axis=0)
-#
+tag_10_train = tag_10[:int(TRAIN_RADIO * len(tag_10))]
+tag_10_test = tag_10[int(TRAIN_RADIO * len(tag_10)):]
+tag_0_train = tag_0[:int(TRAIN_RADIO * len(tag_0))]
+tag_0_test = tag_0[int(TRAIN_RADIO * len(tag_0)):]
 # filter_train = np.concatenate((
-#     tag_1_train, tag_2_train, tag_3_train, tag_4_train, tag_5_train, tag_6_train, tag_7_train,
-#     tag_8_train, tag_9_train, tag_10_train), axis=0)
+#     tag_1_train, tag_3_train, tag_4_train, tag_6_train, tag_7_train,
+#     tag_9_train), axis=0)
 # filter_test = np.concatenate((
-#     tag_1_test, tag_2_test, tag_3_test, tag_4_test, tag_5_test, tag_6_test, tag_7_test,
-#     tag_8_test, tag_9_test, tag_10_test), axis=0)
+#     tag_1_test, tag_3_test, tag_4_test, tag_6_test, tag_7_test,
+#     tag_9_test), axis=0)
+
+filter_train = np.concatenate((
+    tag_1_train, tag_2_train, tag_3_train, tag_4_train, tag_5_train, tag_6_train, tag_7_train,
+    tag_8_train, tag_9_train, tag_10_train, tag_0_train), axis=0)
+filter_test = np.concatenate((
+    tag_1_test, tag_2_test, tag_3_test, tag_4_test, tag_5_test, tag_6_test, tag_7_test,
+    tag_8_test, tag_9_test, tag_10_test, tag_0_test), axis=0)
 print(filter_train.shape)
 print(filter_test.shape)
 

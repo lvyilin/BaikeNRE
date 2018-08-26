@@ -98,7 +98,7 @@ class Network(nn.Block):
             self.center_out.add(nn.Dense(200, activation="relu"))
             self.output = nn.Sequential()
             self.output.add(nn.Dropout(0.5))
-            self.output.add(nn.Dense(6))
+            self.output.add(nn.Dense(11))
 
     def forward(self, input_data):
         e1_vec_start = FIXED_WORD_LENGTH * DIMENSION
