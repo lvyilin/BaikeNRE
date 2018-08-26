@@ -45,7 +45,7 @@ class Network(nn.Block):
 
         self.output = nn.Sequential()
         self.output.add(nn.Dropout(0.5))
-        self.output.add(nn.Dense(6))
+        self.output.add(nn.Dense(11))
 
     def forward(self, input_data):
         x = nd.transpose(input_data, axes=(1, 0, 2))

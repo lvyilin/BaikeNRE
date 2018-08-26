@@ -37,7 +37,7 @@ class Network(nn.Block):
         super().__init__(prefix, params)
 
         self.gru = rnn.GRU(64, num_layers=1, bidirectional=True, dropout=0.2)
-        self.output = nn.Dense(6)
+        self.output = nn.Dense(11)
 
     def forward(self, input_data):
         x = nd.transpose(input_data, axes=(1, 0, 2))
