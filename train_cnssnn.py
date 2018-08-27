@@ -1,10 +1,12 @@
+import os
 import time
 
 import numpy as np
-import mxnet as mx
-from mxnet import gluon, init, autograd, nd
+from mxnet import gluon, autograd, nd
 from mxnet.gluon import loss as gloss, nn, rnn
 
+CWD = os.getcwd()
+SAVE_MODEL_PATH = CWD + "\\net_params\\cnssnn\\net_cnssnn_epoch%d.params"
 WORD_DIMENSION = 100
 POS_DIMENSION = 5
 DIMENSION = WORD_DIMENSION + 2 * POS_DIMENSION
@@ -15,7 +17,8 @@ MASK_LENGTH = ENTITY_DEGREE
 ENTITY_EDGE_VEC_LENGTH = ENTITY_DEGREE * (WORD_DIMENSION * 2)
 VEC_LENGTH = DIMENSION * FIXED_WORD_LENGTH + ENTITY_EDGE_VEC_LENGTH * 2
 ADAPTIVE_LEARNING_RATE = True
-fail_id_file = open("fail_id.txt", "w")
+
+fail_id_file = open("fail_id_cnssnn.txt", "w")
 
 input_train = np.load('data_train_cnssnn_id.npy')
 input_test = np.load('data_test_cnssnn_id.npy')
@@ -35,6 +38,10 @@ x_test = x_test.astype(np.float32)
 y_test = y_test.astype(np.float32)
 print(x_train.shape, x_test.shape)
 
+decay_rate = 0.1
+epochs = 200
+gap = 50
+
 batch_size = 128
 loss = gloss.SoftmaxCrossEntropyLoss()
 
@@ -49,6 +56,7 @@ def accuracy(y_hat, y):
 def accuracy_with_flag(y_hat, y):
     return (y_hat.argmax(axis=1) == y).mean().asscalar(), (y_hat.argmax(axis=1) == y)
 
+
 def evaluate_accuracy(data_iter, net):
     acc = 0
     fail_id = []
@@ -60,11 +68,6 @@ def evaluate_accuracy(data_iter, net):
                 fail_id.append(str(int(y[i, 1].asscalar())))
     fail_id_file.write("%s\n" % " ".join(fail_id))
     return acc / len(data_iter)
-
-
-decay_rate = 0.1
-epochs = 1
-gap = 50
 
 
 def train(net, train_iter, test_iter):
@@ -87,6 +90,7 @@ def train(net, train_iter, test_iter):
         print('epoch %d, loss %.4f, train acc %.3f, test acc %.3f time %.1f sec'
               % (epoch, train_loss_sum / len(train_iter),
                  train_acc_sum / len(train_iter), test_acc, time.time() - start))
+        net.save_parameters(SAVE_MODEL_PATH % epoch)
 
 
 class Network(nn.Block):
@@ -106,7 +110,7 @@ class Network(nn.Block):
             self.center_out.add(nn.Dense(200, activation="relu"))
             self.output = nn.Sequential()
             self.output.add(nn.Dropout(0.5))
-            self.output.add(nn.Dense(6))
+            self.output.add(nn.Dense(11))
 
     def forward(self, input_data):
         e1_vec_start = FIXED_WORD_LENGTH * DIMENSION
