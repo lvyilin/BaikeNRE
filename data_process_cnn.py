@@ -26,7 +26,10 @@ with open(CORPUS, "r", encoding="utf8") as f:
         content = line.strip().split()
         entity_a = content[0]
         entity_b = content[1]
-        relation = int(content[2])
+        try:
+            relation = int(content[2])
+        except ValueError:
+            continue
         sentence = content[3:]
 
         sentence_vector = []
@@ -121,7 +124,12 @@ tag_8 = conc[conc[:, 0] == 8]
 tag_9 = conc[conc[:, 0] == 9]
 tag_10 = conc[conc[:, 0] == 10]
 tag_0 = conc[conc[:, 0] == -1]
+
+# 合并同事&朋友
 tag_0[:, 0] = 0
+tag_8[:, 0] = 4
+tag_9[:, 0] = 8
+tag_10[:, 0] = 9
 
 tag_1_train = tag_1[:int(TRAIN_RADIO * len(tag_1))]
 tag_1_test = tag_1[int(TRAIN_RADIO * len(tag_1)):]

@@ -1,6 +1,6 @@
 import os
 
-IS_FOR_NO_RELATION = False
+IS_FOR_NO_RELATION = True
 
 CWD = os.getcwd()
 

@@ -49,7 +49,7 @@ net.add(nn.Conv2D(256, kernel_size=(3, DIMENSION), padding=(1, 0), activation='r
 net.add(nn.MaxPool2D(pool_size=(FIXED_WORD_LENGTH, 1)))
 net.add(nn.Dense(256, activation='relu'))
 net.add(nn.Dropout(0.5))
-net.add(nn.Dense(11))
+net.add(nn.Dense(10))
 
 net.initialize(init=init.Xavier())
 
@@ -81,6 +81,7 @@ def evaluate_accuracy(data_iter, net):
     for X, y in data_iter:
         acc += accuracy(net(X), y)
     return acc / len(data_iter)
+
 
 def train(net, train_iter, test_iter, loss, num_epochs, batch_size, trainer):
     for epoch in range(1, num_epochs + 1):
