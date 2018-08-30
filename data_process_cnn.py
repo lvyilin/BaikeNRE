@@ -5,7 +5,7 @@ import os
 
 CWD = os.getcwd()
 WORDVEC = CWD + "\\wordvectors.kv"
-CORPUS = CWD + "\\separated_corpus_with_label_patch.txt"
+CORPUS = CWD + "\\separated_corpus_with_label_patch_amend.txt"
 DIMENSION = 100
 POS_DIMENSION = 5
 FIXED_WORD_LENGTH = 60
@@ -76,6 +76,7 @@ with open(CORPUS, "r", encoding="utf8") as f:
         if exception_flag:
             if relation == -1:
                 continue
+            print(line)
             exit(1)
         for i in range(len(sentence)):
             relative_vector_entity_a = POS_VECTOR[i - entity_a_pos, :]
@@ -125,11 +126,22 @@ tag_9 = conc[conc[:, 0] == 9]
 tag_10 = conc[conc[:, 0] == 10]
 tag_0 = conc[conc[:, 0] == -1]
 
-# 合并同事&朋友
+# tag_0[:, 0] = 0
+# tag_8[:, 0] = 4
+# tag_9[:, 0] = 8
+# tag_10[:, 0] = 9
 tag_0[:, 0] = 0
-tag_8[:, 0] = 4
-tag_9[:, 0] = 8
-tag_10[:, 0] = 9
+# tag_2[:, 0] = 1
+# tag_6[:, 0] = 1
+# tag_10[:, 0] = 1
+# tag_3[:, 0] = 2
+# tag_4[:, 0] = 3
+# tag_8[:, 0] = 3
+# tag_5[:, 0] = 4
+# tag_7[:, 0] = 5
+# tag_9[:, 0] = 6
+
+tag_0 = tag_0[:3753, :]
 
 tag_1_train = tag_1[:int(TRAIN_RADIO * len(tag_1))]
 tag_1_test = tag_1[int(TRAIN_RADIO * len(tag_1)):]

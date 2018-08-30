@@ -3,10 +3,10 @@ import os
 import numpy as np
 from mxnet import nd
 from mxnet.gluon import nn
-from sklearn.metrics import precision_recall_fscore_support
+from sklearn.metrics import precision_recall_fscore_support, classification_report
 
 CWD = os.getcwd()
-MODEL_PARAMS_PATH = CWD + "\\net_params\\cnn\\net_cnn_epoch80.params"
+MODEL_PARAMS_PATH = CWD + "\\net_params\\cnn\\net_cnn_epoch40.params"
 SENTENCE_DIMENSION = 100
 POS_DIMENSION = 5
 DIMENSION = SENTENCE_DIMENSION + 2 * POS_DIMENSION
@@ -34,7 +34,7 @@ net.add(nn.Conv2D(256, kernel_size=(3, DIMENSION), padding=(1, 0), activation='r
 net.add(nn.MaxPool2D(pool_size=(FIXED_WORD_LENGTH, 1)))
 net.add(nn.Dense(256, activation='relu'))
 net.add(nn.Dropout(0.5))
-net.add(nn.Dense(6))
+net.add(nn.Dense(7))
 
 net.load_parameters(MODEL_PARAMS_PATH)
 print(net)
@@ -42,4 +42,5 @@ print(net)
 label_list = y_all.tolist()
 y_hat = net(nd.array(x_all))
 predict_list = y_hat.argmax(axis=1).asnumpy().astype(np.int).tolist()
-print(precision_recall_fscore_support(label_list, predict_list, average='macro'))
+print(precision_recall_fscore_support(label_list, predict_list, average='weighted'))
+print(classification_report(label_list, predict_list))

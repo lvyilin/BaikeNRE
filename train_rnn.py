@@ -6,7 +6,7 @@ from mxnet import gluon, init, autograd, nd
 from mxnet.gluon import loss as gloss, nn, rnn
 
 CWD = os.getcwd()
-SAVE_MODEL_PATH = CWD + "\\net_params\\gru\\net_gru_epoch%d.params"
+SAVE_MODEL_PATH = CWD + "\\net_params\\lstm\\net_lstm_epoch%d.params"
 SENTENCE_DIMENSION = 100
 DIMENSION = SENTENCE_DIMENSION
 FIXED_WORD_LENGTH = 60
@@ -36,7 +36,7 @@ class Network(nn.Block):
     def __init__(self, prefix=None, params=None):
         super().__init__(prefix, params)
 
-        self.gru = rnn.GRU(64, num_layers=1, bidirectional=True, dropout=0.2)
+        self.gru = rnn.LSTM(64, num_layers=1, bidirectional=True, dropout=0.2)
         self.output = nn.Dense(11)
 
     def forward(self, input_data):

@@ -45,7 +45,10 @@ with open(CORPUS, "r", encoding="utf8") as f:
         content = line.strip().split()
         entity_a = content[0]
         entity_b = content[1]
-        relation = int(content[2])
+        try:
+            relation = int(content[2])
+        except ValueError:
+            continue
         sentence = content[3:]
 
         sentence_vector = []

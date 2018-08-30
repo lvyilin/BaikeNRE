@@ -6,7 +6,7 @@ from mxnet.gluon import nn, rnn
 from sklearn.metrics import precision_recall_fscore_support
 
 CWD = os.getcwd()
-MODEL_PARAMS_PATH = CWD + "\\net_params\\gru\\net_gru_epoch80.params"
+MODEL_PARAMS_PATH = CWD + "\\net_params\\lstm\\net_lstm_epoch80.params"
 SENTENCE_DIMENSION = 100
 DIMENSION = SENTENCE_DIMENSION
 FIXED_WORD_LENGTH = 60
@@ -32,7 +32,7 @@ class Network(nn.Block):
     def __init__(self, prefix=None, params=None):
         super().__init__(prefix, params)
 
-        self.gru = rnn.GRU(64, num_layers=1, bidirectional=True, dropout=0.2)
+        self.gru = rnn.LSTM(64, num_layers=1, bidirectional=True, dropout=0.2)
         self.output = nn.Dense(6)
 
     def forward(self, input_data):

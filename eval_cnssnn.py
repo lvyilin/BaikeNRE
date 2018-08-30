@@ -1,12 +1,13 @@
+# 重要：预测值为y_hat的argmax索引位置！
 import os
 
 import numpy as np
 from mxnet import nd
 from mxnet.gluon import nn, rnn
-from sklearn.metrics import precision_recall_fscore_support
+from sklearn.metrics import precision_recall_fscore_support, classification_report
 
 CWD = os.getcwd()
-MODEL_PARAMS_PATH = CWD + "\\net_params\\cnssnn\\net_cnssnn_epoch80.params"
+MODEL_PARAMS_PATH = CWD + "\\net_params\\cnssnn\\net_cnssnn_epoch54.params"
 WORD_DIMENSION = 100
 POS_DIMENSION = 5
 DIMENSION = WORD_DIMENSION + 2 * POS_DIMENSION
@@ -18,21 +19,22 @@ ENTITY_EDGE_VEC_LENGTH = ENTITY_DEGREE * (WORD_DIMENSION * 2)
 VEC_LENGTH = DIMENSION * FIXED_WORD_LENGTH + ENTITY_EDGE_VEC_LENGTH * 2
 
 input_test = np.load('data_test_cnssnn.npy')
+# input_test = input_test[input_test[:, 0] == PREDICT_VALUE]
 
+x_all = input_test[:, 3:]
+y_all = input_test[:, 0]
+# y_all[:] = PREDICT_INDEX
+print(x_all.shape)
+print(y_all.shape)
 
-x_test = input_test[:, 3:]
-y_test = input_test[:, 0]
-print(x_test.shape)
-print(y_test.shape)
-
-x_test = x_test.astype(np.float32)
-y_test = y_test.astype(np.float32)
-
-x_all = x_test
-y_all = y_test
 x_all = x_all.astype(np.float32)
-y_all = y_all.astype(np.int)
-print(x_all.shape, y_all.shape)
+y_all = y_all.astype(np.float32)
+
+x_test = x_all
+y_test = y_all
+x_test = x_test.astype(np.float32)
+y_test = y_test.astype(np.int)
+print(x_test.shape, y_test.shape)
 
 
 class Network(nn.Block):
@@ -52,7 +54,7 @@ class Network(nn.Block):
             self.center_out.add(nn.Dense(200, activation="relu"))
             self.output = nn.Sequential()
             self.output.add(nn.Dropout(0.5))
-            self.output.add(nn.Dense(6))
+            self.output.add(nn.Dense(11))
 
     def forward(self, input_data):
         e1_vec_start = FIXED_WORD_LENGTH * DIMENSION
@@ -108,7 +110,8 @@ net = Network()
 net.load_parameters(MODEL_PARAMS_PATH)
 print(net)
 
-label_list = y_all.tolist()
-y_hat = net(nd.array(x_all))
+label_list = y_test.tolist()
+y_hat = net(nd.array(x_test))
 predict_list = y_hat.argmax(axis=1).asnumpy().astype(np.int).tolist()
-print(precision_recall_fscore_support(label_list, predict_list, average='macro'))
+print(precision_recall_fscore_support(label_list, predict_list, average='weighted'))
+print(classification_report(label_list, predict_list))

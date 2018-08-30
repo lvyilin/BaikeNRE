@@ -36,7 +36,7 @@ class Network(nn.Block):
     def __init__(self, prefix=None, params=None):
         super().__init__(prefix, params)
 
-        self.gru = rnn.GRU(64, num_layers=1, bidirectional=True, dropout=0.2)
+        self.gru = rnn.LSTM(64, num_layers=1, bidirectional=True, dropout=0.2)
         self.att = nn.Sequential()
         self.att.add(nn.Dense(1, flatten=False,
                               activation="sigmoid"))
