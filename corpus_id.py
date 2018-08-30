@@ -2,8 +2,8 @@
 import os
 
 CWD = os.getcwd()
-CORPUS = CWD + "\\separated_corpus_with_label_patch.txt"
-ID_CORPUS = CWD + "\\separated_corpus_with_label_patch_id.txt"
+CORPUS = CWD + "\\separated_corpus_with_label_patch_amend.txt"
+ID_CORPUS = CWD + "\\separated_corpus_with_label_patch_amend_id.txt"
 FAIL_ID = CWD + "\\fail_id_cnssnn.txt"
 FAIL_SENTENCE = CWD + "\\fail_sentence_cnssnn.txt"
 
@@ -39,5 +39,5 @@ def map_id_to_sentence():
                 f_sentence.write(line)
 
 
-# insert_id()
-map_id_to_sentence()
+insert_id()
+# map_id_to_sentence()
