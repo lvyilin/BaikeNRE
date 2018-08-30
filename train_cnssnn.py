@@ -7,7 +7,7 @@ from mxnet import gluon, autograd, nd
 from mxnet.gluon import loss as gloss, nn, rnn
 
 CWD = os.getcwd()
-SAVE_MODEL_PATH = CWD + "\\net_params\\cnssnn\\net_cnssnn_epoch%d.params"
+SAVE_MODEL_PATH = os.path.join(CWD, "\\net_params\\cnssnn\\net_cnssnn_epoch%d.params")
 WORD_DIMENSION = 100
 POS_DIMENSION = 5
 DIMENSION = WORD_DIMENSION + 2 * POS_DIMENSION

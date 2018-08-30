@@ -4,8 +4,8 @@ import numpy as np
 import os
 
 CWD = os.getcwd()
-WORDVEC = CWD + "\\wordvectors.kv"
-CORPUS = CWD + "\\separated_corpus_with_label_patch_amend_id.txt"
+WORDVEC = os.path.join(CWD, "\\wordvectors.kv")
+CORPUS = os.path.join(CWD, "\\separated_corpus_with_label_patch_amend_id.txt")
 DIMENSION = 100
 POS_DIMENSION = 5
 FIXED_WORD_LENGTH = 60

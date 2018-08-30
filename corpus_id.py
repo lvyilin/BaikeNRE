@@ -2,10 +2,10 @@
 import os
 
 CWD = os.getcwd()
-CORPUS = CWD + "\\separated_corpus_with_label_patch_amend.txt"
-ID_CORPUS = CWD + "\\separated_corpus_with_label_patch_amend_id.txt"
-FAIL_ID = CWD + "\\fail_id_cnssnn.txt"
-FAIL_SENTENCE = CWD + "\\fail_sentence_cnssnn.txt"
+CORPUS = os.path.join(CWD, "\\separated_corpus_with_label_patch_amend.txt")
+ID_CORPUS = os.path.join(CWD, "\\separated_corpus_with_label_patch_amend_id.txt")
+FAIL_ID = os.path.join(CWD, "\\fail_id_cnssnn.txt")
+FAIL_SENTENCE = os.path.join(CWD, "\\fail_sentence_cnssnn.txt")
 
 
 def insert_id():
