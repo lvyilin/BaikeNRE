@@ -18,15 +18,17 @@ ENTITY_EDGE_VEC_LENGTH = ENTITY_DEGREE * (WORD_DIMENSION * 2)
 VEC_LENGTH = DIMENSION * FIXED_WORD_LENGTH + ENTITY_EDGE_VEC_LENGTH * 2
 ADAPTIVE_LEARNING_RATE = True
 
-input_train = np.load('data_train_cnssnn.npy')
-input_test = np.load('data_test_cnssnn.npy')
+fail_id_file = open("fail_id_cnssnn.txt", "w")
 
-x_train = input_train[:, 3:]
-y_train = input_train[:, 0]
+input_train = np.load('data_train_cnssnn_id.npy')
+input_test = np.load('data_test_cnssnn_id.npy')
+
+x_train = input_train[:, 4:]
+y_train = input_train[:, 0:2]
 print(x_train.shape)
 print(y_train.shape)
-x_test = input_test[:, 3:]
-y_test = input_test[:, 0]
+x_test = input_test[:, 4:]
+y_test = input_test[:, 0:2]
 print(x_test.shape)
 print(y_test.shape)
 
@@ -51,10 +53,20 @@ def accuracy(y_hat, y):
     return (y_hat.argmax(axis=1) == y).mean().asscalar()
 
 
+def accuracy_with_flag(y_hat, y):
+    return (y_hat.argmax(axis=1) == y).mean().asscalar(), (y_hat.argmax(axis=1) == y)
+
+
 def evaluate_accuracy(data_iter, net):
     acc = 0
+    fail_id = []
     for X, y in data_iter:
-        acc += accuracy(net(X), y)
+        a, b = accuracy_with_flag(net(X), y[:, 0])
+        acc += a
+        for i in range(len(b)):
+            if not b[i]:
+                fail_id.append(str(int(y[i, 1].asscalar())))
+    fail_id_file.write("%s\n" % " ".join(fail_id))
     return acc / len(data_iter)
 
 
@@ -69,11 +81,11 @@ def train(net, train_iter, test_iter):
         for X, y in train_iter:
             with autograd.record():
                 y_hat = net(X)
-                lss = loss(y_hat, y)
+                lss = loss(y_hat, y[:, 0])
             lss.backward()
             trainer.step(batch_size, ignore_stale_grad=True)
             train_loss_sum += lss.mean().asscalar()
-            train_acc_sum += accuracy(y_hat, y)
+            train_acc_sum += accuracy(y_hat, y[:, 0])
         test_acc = evaluate_accuracy(test_iter, net)
         print('epoch %d, loss %.4f, train acc %.3f, test acc %.3f time %.1f sec'
               % (epoch, train_loss_sum / len(train_iter),
@@ -157,3 +169,5 @@ if ADAPTIVE_LEARNING_RATE:
 else:
     trainer = gluon.Trainer(net.collect_params(), 'adam', {'learning_rate': 0.0001})
 train(net, train_data, test_data)
+
+fail_id_file.close()
