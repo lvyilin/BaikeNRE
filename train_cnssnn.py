@@ -2,6 +2,7 @@ import os
 import time
 
 import numpy as np
+import mxnet as mx
 from mxnet import gluon, autograd, nd
 from mxnet.gluon import loss as gloss, nn, rnn
 
@@ -18,6 +19,8 @@ ENTITY_EDGE_VEC_LENGTH = ENTITY_DEGREE * (WORD_DIMENSION * 2)
 VEC_LENGTH = DIMENSION * FIXED_WORD_LENGTH + ENTITY_EDGE_VEC_LENGTH * 2
 ADAPTIVE_LEARNING_RATE = True
 
+CTX = mx.cpu(0)
+ctx = [CTX]
 fail_id_file = open("fail_id_cnssnn.txt", "w")
 
 input_train = np.load('data_train_cnssnn_id.npy')
@@ -37,6 +40,11 @@ y_train = y_train.astype(np.float32)
 x_test = x_test.astype(np.float32)
 y_test = y_test.astype(np.float32)
 print(x_train.shape, x_test.shape)
+
+x_train = nd.array(x_train).as_in_context(CTX)
+y_train = nd.array(y_train).as_in_context(CTX)
+x_test = nd.array(x_test).as_in_context(CTX)
+y_test = nd.array(y_test).as_in_context(CTX)
 
 decay_rate = 0.1
 epochs = 200
@@ -163,7 +171,7 @@ class Network(nn.Block):
 
 
 net = Network()
-net.initialize()
+net.initialize(ctx=ctx)
 if ADAPTIVE_LEARNING_RATE:
     trainer = gluon.Trainer(net.collect_params(), 'adam', {'beta1': 0.9, 'beta2': 0.99, 'learning_rate': 1e-2})
 else:
