@@ -5,7 +5,7 @@ import os
 
 CWD = os.getcwd()
 WORDVEC = CWD + "\\wordvectors.kv"
-CORPUS = CWD + "\\separated_corpus_with_label_patch.txt"
+CORPUS = CWD + "\\separated_corpus_with_label_patch_amend_id.txt"
 DIMENSION = 100
 POS_DIMENSION = 5
 FIXED_WORD_LENGTH = 60
@@ -41,6 +41,7 @@ output_relation = []
 output_en1_vec = []
 output_en2_vec = []
 
+fail_line = []
 with open(CORPUS, "r", encoding="utf8") as f:
     for line in f:
         content = line.strip().split()
@@ -92,8 +93,8 @@ with open(CORPUS, "r", encoding="utf8") as f:
             exception_flag = True
             # exit(1)
         if exception_flag:
-            if relation == -1:
-                continue
+            # if relation == -1:
+            #     continue
             exit(1)
         for i in range(len(sentence)):
             relative_vector_entity_a = POS_VECTOR[i - entity_a_pos, :]
