@@ -4,9 +4,10 @@ import numpy as np
 import mxnet as mx
 from mxnet import gluon, init, autograd, nd
 from mxnet.gluon import loss as gloss, nn, rnn
+from sklearn.metrics import precision_recall_fscore_support, classification_report
 
 CWD = os.getcwd()
-SAVE_MODEL_PATH = os.path.join(CWD, "net_params", "lstm_att", "net_lstm_att_epoch%d.params")
+SAVE_MODEL_PATH = os.path.join(CWD, "net_params", "lstm_att", "net_lstm_att_epoch%d_12610.params")
 SENTENCE_DIMENSION = 100
 DIMENSION = SENTENCE_DIMENSION
 FIXED_WORD_LENGTH = 60
@@ -15,8 +16,8 @@ ADAPTIVE_LEARNING_RATE = True
 CTX = mx.cpu(0)
 ctx = [CTX]
 
-input_train = np.load('data_train_rnn.npy')
-input_test = np.load('data_test_rnn.npy')
+input_train = np.load('data_train_rnn_12610.npy')
+input_test = np.load('data_test_rnn_12610.npy')
 
 x_train = input_train[:, 1:].reshape((input_train.shape[0], FIXED_WORD_LENGTH, DIMENSION))
 y_train = input_train[:, 0]
@@ -52,7 +53,7 @@ class Network(nn.Block):
 
             self.output = nn.Sequential()
             self.output.add(nn.Dropout(0.5))
-            self.output.add(nn.Dense(11))
+            self.output.add(nn.Dense(7))
 
     def forward(self, input_data):
         x = nd.transpose(input_data, axes=(1, 0, 2))
@@ -99,6 +100,8 @@ def evaluate_accuracy(data_iter, net):
 
 
 def train(net, train_iter, test_iter, loss, num_epochs, batch_size, trainer):
+    highest_epoch = -1
+    highest_acc = -1
     for epoch in range(1, num_epochs + 1):
         train_l_sum = 0
         train_acc_sum = 0
@@ -116,10 +119,26 @@ def train(net, train_iter, test_iter, loss, num_epochs, batch_size, trainer):
             train_l_sum += l.mean().asscalar()
             train_acc_sum += accuracy(y_hat, y)
         test_acc = evaluate_accuracy(test_iter, net)
+        if test_acc > highest_acc:
+            highest_acc = test_acc
+            highest_epoch = epoch
         print('epoch %d, loss %.4f, train acc %.3f, test acc %.3f time %.1f sec'
               % (epoch, train_l_sum / len(train_iter),
                  train_acc_sum / len(train_iter), test_acc, time.time() - start))
         net.save_params(SAVE_MODEL_PATH % epoch)
+    print("highest epoch & acc: %d, %f" % (highest_epoch, highest_acc))
+    evaluate_model(net, highest_epoch)
+
+
+def evaluate_model(net, epoch):
+    net.load_params(SAVE_MODEL_PATH % epoch, ctx=CTX)
+    y_hat = net(x_test)
+    result = nd.concat(y_test.expand_dims(axis=1), y_hat, dim=1)
+    np.save("result_lstm_att.npy", result.asnumpy())
+    predict_list = y_hat.argmax(axis=1).asnumpy().astype(np.int).tolist()
+    label_list = y_test.astype(np.int).asnumpy().tolist()
+    print(precision_recall_fscore_support(label_list, predict_list, average='weighted'))
+    print(classification_report(label_list, predict_list))
 
 
 train(net, train_data, test_data, loss, num_epochs, batch_size, trainer)

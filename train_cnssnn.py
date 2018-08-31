@@ -5,9 +5,10 @@ import numpy as np
 import mxnet as mx
 from mxnet import gluon, autograd, nd
 from mxnet.gluon import loss as gloss, nn, rnn
+from sklearn.metrics import precision_recall_fscore_support, classification_report
 
 CWD = os.getcwd()
-SAVE_MODEL_PATH = os.path.join(CWD, "net_params", "cnssnn", "net_cnssnn_epoch%d.params")
+SAVE_MODEL_PATH = os.path.join(CWD, "net_params", "cnssnn", "net_cnssnn_epoch%d_12610.params")
 WORD_DIMENSION = 100
 POS_DIMENSION = 5
 DIMENSION = WORD_DIMENSION + 2 * POS_DIMENSION
@@ -23,8 +24,8 @@ CTX = mx.cpu(0)
 ctx = [CTX]
 fail_id_file = open("fail_id_cnssnn.txt", "w")
 
-input_train = np.load('data_train_cnssnn_id.npy')
-input_test = np.load('data_test_cnssnn_id.npy')
+input_train = np.load('data_train_cnssnn_id_12610.npy')
+input_test = np.load('data_test_cnssnn_id_12610.npy')
 
 x_train = input_train[:, 4:]
 y_train = input_train[:, 0:2]
@@ -47,7 +48,7 @@ x_test = nd.array(x_test, ctx=CTX)
 y_test = nd.array(y_test, ctx=CTX)
 
 decay_rate = 0.1
-epochs = 200
+epochs = 100
 gap = 50
 
 batch_size = 128
@@ -79,6 +80,8 @@ def evaluate_accuracy(data_iter, net):
 
 
 def train(net, train_iter, test_iter):
+    highest_epoch = -1
+    highest_acc = -1
     for epoch in range(1, epochs + 1):
         train_loss_sum = 0
         train_acc_sum = 0
@@ -95,10 +98,27 @@ def train(net, train_iter, test_iter):
             train_loss_sum += lss.mean().asscalar()
             train_acc_sum += accuracy(y_hat, y[:, 0])
         test_acc = evaluate_accuracy(test_iter, net)
+        if test_acc > highest_acc:
+            highest_acc = test_acc
+            highest_epoch = epoch
         print('epoch %d, loss %.4f, train acc %.3f, test acc %.3f time %.1f sec'
               % (epoch, train_loss_sum / len(train_iter),
                  train_acc_sum / len(train_iter), test_acc, time.time() - start))
         net.save_params(SAVE_MODEL_PATH % epoch)
+    print("highest epoch & acc: %d, %f" % (highest_epoch, highest_acc))
+    evaluate_model(net, highest_epoch)
+
+
+def evaluate_model(net, epoch):
+    net.load_params(SAVE_MODEL_PATH % epoch, ctx=CTX)
+    y_hat = net(x_test)
+    y_test_0 = y_test[:, 0]
+    result = nd.concat(y_test_0.expand_dims(axis=1), y_hat, dim=1)
+    np.save("result_cnssnn.npy", result.asnumpy())
+    predict_list = y_hat.argmax(axis=1).asnumpy().astype(np.int).tolist()
+    label_list = y_test_0.astype(np.int).asnumpy().tolist()
+    print(precision_recall_fscore_support(label_list, predict_list, average='weighted'))
+    print(classification_report(label_list, predict_list))
 
 
 class Network(nn.Block):
@@ -118,7 +138,7 @@ class Network(nn.Block):
             self.center_out.add(nn.Dense(200, activation="relu"))
             self.output = nn.Sequential()
             self.output.add(nn.Dropout(0.5))
-            self.output.add(nn.Dense(11))
+            self.output.add(nn.Dense(7))
 
     def forward(self, input_data):
         e1_vec_start = FIXED_WORD_LENGTH * DIMENSION

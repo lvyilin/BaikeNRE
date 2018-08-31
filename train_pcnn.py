@@ -1,30 +1,32 @@
-import time
 import os
+import time
+
 import numpy as np
 import mxnet as mx
 from mxnet import gluon, init, autograd, nd
-from mxnet.gluon import loss as gloss, nn, rnn
+from mxnet.gluon import loss as gloss, nn
 from sklearn.metrics import precision_recall_fscore_support, classification_report
 
 CWD = os.getcwd()
-SAVE_MODEL_PATH = os.path.join(CWD, "net_params", "lstm", "net_lstm_epoch%d_12610.params")
+SAVE_MODEL_PATH = os.path.join(CWD, "net_params", "pcnn", "net_pcnn_epoch%d_12610.params")
 SENTENCE_DIMENSION = 100
-DIMENSION = SENTENCE_DIMENSION
+POS_DIMENSION = 5
+DIMENSION = SENTENCE_DIMENSION + 2 * POS_DIMENSION
 FIXED_WORD_LENGTH = 60
-ADAPTIVE_LEARNING_RATE = True
+ADAPTIVE_LEARNING_RATE = False
 
 CTX = mx.cpu(0)
 ctx = [CTX]
 
-input_train = np.load('data_train_rnn_12610.npy')
-input_test = np.load('data_test_rnn_12610.npy')
-x_train = input_train[:, 1:].reshape((input_train.shape[0], FIXED_WORD_LENGTH, DIMENSION))
-# x_train = np.expand_dims(x_train, axis=1)
+input_train = np.load('data_train_12610.npy')
+input_test = np.load('data_test_12610.npy')
+# x_train = input_train[:, 3:].reshape((input_train.shape[0], FIXED_WORD_LENGTH, DIMENSION))
+x_train = input_train[:, 1:]
 y_train = input_train[:, 0]
 print(x_train.shape)
 print(y_train.shape)
-x_test = input_test[:, 1:].reshape((input_test.shape[0], FIXED_WORD_LENGTH, DIMENSION))
-# x_test = np.expand_dims(x_test, axis=1)
+# x_test = input_test[:, 3:].reshape((input_test.shape[0], FIXED_WORD_LENGTH, DIMENSION))
+x_test = input_test[:, 1:]
 y_test = input_test[:, 0]
 print(x_test.shape)
 print(y_test.shape)
@@ -40,21 +42,72 @@ y_train = nd.array(y_train, ctx=CTX)
 x_test = nd.array(x_test, ctx=CTX)
 y_test = nd.array(y_test, ctx=CTX)
 
-class Network(nn.Block):
-    def __init__(self, prefix=None, params=None):
-        super().__init__(prefix, params)
+
+class PCNN(nn.Block):
+    def __init__(self, **kwargs):
+        super(PCNN, self).__init__(**kwargs)
         with self.name_scope():
-            self.gru = rnn.LSTM(64, num_layers=1, bidirectional=True, dropout=0.2)
-            self.output = nn.Dense(7)
+            self.conv = nn.Conv2D(230, kernel_size=[3, DIMENSION], padding=[2, 0], strides=1)
+            self.pmp = nn.MaxPool2D(pool_size=[FIXED_WORD_LENGTH, 1])
 
-    def forward(self, input_data):
-        x = nd.transpose(input_data, axes=(1, 0, 2))
-        h = nd.transpose(self.gru(x), axes=(1, 0, 2))
-        return self.output(h)
+            self.output = nn.Sequential()
+            self.output.add(nn.Flatten())
+            self.output.add(nn.Activation(activation='tanh'))
+            self.output.add(nn.Dropout(0.5))
+            self.output.add(nn.Dense(128, activation='sigmoid'))
+            self.output.add(nn.Dense(7, activation='tanh'))
+
+    def forward(self, x):
+        ep1 = x[:, 0].astype(int).asnumpy().tolist()
+        ep2 = x[:, 1].astype(int).asnumpy().tolist()
+        x = x[:, 2:].reshape((x.shape[0], FIXED_WORD_LENGTH, DIMENSION))
+        x = nd.expand_dims(x, axis=1)
+        # PCNN
+        # 卷积结果
+        conv_result = nd.relu(self.conv(x))
+        #         print(conv_result.shape)
+
+        # 使用mask 将卷积结果分段
+        be1_mask = nd.zeros(conv_result.shape, ctx=CTX)
+        aes_mask = nd.zeros(conv_result.shape, ctx=CTX)
+        be2_mask = nd.zeros(conv_result.shape, ctx=CTX)
+        #
+        be1_pad = nd.ones(conv_result.shape, ctx=CTX) * (-100)
+        aes_pad = nd.ones(conv_result.shape, ctx=CTX) * (-100)
+        be2_pad = nd.ones(conv_result.shape, ctx=CTX) * (-100)
+        #         print(be1_mask.shape)
+        for i in range(x.shape[0]):
+            if ep1[i] == 0:
+                ep1[i] += 1
+                ep2[i] += 1
+            be1_mask[i, :, :ep1[i], :] = 1
+            be1_pad[i, :, :ep1[i], :] = 0
+            aes_mask[i, :, ep1[i]:ep2[i], :] = 1
+            aes_pad[i, :, ep1[i]:ep2[i], :] = 0
+            be2_mask[i, :, ep2[i]:, :] = 1
+            be2_pad[i, :, ep2[i]:, :] = 0
+
+        # 卷积结果*mask得到分段后的卷积向量
+        be1 = conv_result * be1_mask
+        aes = conv_result * aes_mask
+        be2 = conv_result * be2_mask
+        # 将无用部分赋予最小值，避免影响maxpool操作
+        be1 = be1 + be1_pad
+        aes = aes + aes_pad
+        be2 = be2 + be2_pad
+
+        o1 = self.pmp(be1)
+        o2 = self.pmp(aes)
+        o3 = self.pmp(be2)
+
+        out = nd.concat(o1, o2, o3, dim=2)
+        y = self.output(out)
+        return y
 
 
-net = Network()
+net = PCNN()
 net.collect_params().initialize(init=init.Xavier(), ctx=ctx)
+
 print(net)
 
 batch_size = 128
@@ -63,7 +116,9 @@ decay_rate = 0.1
 gap = 25
 loss = gloss.SoftmaxCrossEntropyLoss()
 # trainer = gluon.Trainer(net.collect_params(), 'AdaDelta', {'rho': 0.95, 'epsilon': 1e-6, 'wd': 0.01})
+# trainer = gluon.Trainer(net.collect_params(), 'adam', {'learning_rate': 0.0001})
 # trainer = gluon.Trainer(net.collect_params(), 'sgd', {'learning_rate': .01})
+
 if ADAPTIVE_LEARNING_RATE:
     trainer = gluon.Trainer(net.collect_params(), 'adam', {'learning_rate': 0.01})
 else:
@@ -89,7 +144,7 @@ def train(net, train_iter, test_iter, loss, num_epochs, batch_size, trainer):
     highest_epoch = -1
     highest_acc = -1
     for epoch in range(1, num_epochs + 1):
-        train_l_sum = 0
+        train_loss_sum = 0
         train_acc_sum = 0
         if ADAPTIVE_LEARNING_RATE and epoch % gap == 0:
             trainer.set_learning_rate(trainer.learning_rate * decay_rate)
@@ -99,17 +154,17 @@ def train(net, train_iter, test_iter, loss, num_epochs, batch_size, trainer):
             y = y.copyto(CTX)
             with autograd.record():
                 y_hat = net(X)
-                l = loss(y_hat, y)
-            l.backward()
+                lss = loss(y_hat, y)
+            lss.backward()
             trainer.step(batch_size)
-            train_l_sum += l.mean().asscalar()
+            train_loss_sum += lss.mean().asscalar()
             train_acc_sum += accuracy(y_hat, y)
         test_acc = evaluate_accuracy(test_iter, net)
         if test_acc > highest_acc:
             highest_acc = test_acc
             highest_epoch = epoch
         print('epoch %d, loss %.4f, train acc %.3f, test acc %.3f time %.1f sec'
-              % (epoch, train_l_sum / len(train_iter),
+              % (epoch, train_loss_sum / len(train_iter),
                  train_acc_sum / len(train_iter), test_acc, time.time() - start))
         net.save_params(SAVE_MODEL_PATH % epoch)
     print("highest epoch & acc: %d, %f" % (highest_epoch, highest_acc))
@@ -120,7 +175,7 @@ def evaluate_model(net, epoch):
     net.load_params(SAVE_MODEL_PATH % epoch, ctx=CTX)
     y_hat = net(x_test)
     result = nd.concat(y_test.expand_dims(axis=1), y_hat, dim=1)
-    np.save("result_lstm.npy", result.asnumpy())
+    np.save("result_pcnn.npy", result.asnumpy())
     predict_list = y_hat.argmax(axis=1).asnumpy().astype(np.int).tolist()
     label_list = y_test.astype(np.int).asnumpy().tolist()
     print(precision_recall_fscore_support(label_list, predict_list, average='weighted'))

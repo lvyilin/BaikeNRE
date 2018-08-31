@@ -5,20 +5,21 @@ import numpy as np
 import mxnet as mx
 from mxnet import gluon, init, autograd, nd
 from mxnet.gluon import loss as gloss, nn
+from sklearn.metrics import precision_recall_fscore_support, classification_report
 
 CWD = os.getcwd()
-SAVE_MODEL_PATH = os.path.join(CWD, "net_params", "cnn", "net_cnn_epoch%d.params")
+SAVE_MODEL_PATH = os.path.join(CWD, "net_params", "cnn", "net_cnn_epoch%d_12610.params")
 SENTENCE_DIMENSION = 100
 POS_DIMENSION = 5
 DIMENSION = SENTENCE_DIMENSION + 2 * POS_DIMENSION
 FIXED_WORD_LENGTH = 60
 ADAPTIVE_LEARNING_RATE = False
 
-CTX = mx.gpu(2)
+CTX = mx.cpu(0)
 ctx = [CTX]
 
-input_train = np.load('data_train.npy')
-input_test = np.load('data_test.npy')
+input_train = np.load('data_train_12610.npy')
+input_test = np.load('data_test_12610.npy')
 x_train = input_train[:, 3:].reshape((input_train.shape[0], FIXED_WORD_LENGTH, DIMENSION))
 x_train = np.expand_dims(x_train, axis=1)
 y_train = input_train[:, 0]
@@ -49,7 +50,7 @@ with net.name_scope():
     net.add(nn.MaxPool2D(pool_size=(FIXED_WORD_LENGTH, 1)))
     net.add(nn.Dense(256, activation='relu'))
     net.add(nn.Dropout(0.5))
-    net.add(nn.Dense(11))
+    net.add(nn.Dense(7))
 
 net.collect_params().initialize(init=init.Xavier(), ctx=ctx)
 
@@ -85,6 +86,8 @@ def evaluate_accuracy(data_iter, net):
 
 
 def train(net, train_iter, test_iter, loss, num_epochs, batch_size, trainer):
+    highest_epoch = -1
+    highest_acc = -1
     for epoch in range(1, num_epochs + 1):
         train_loss_sum = 0
         train_acc_sum = 0
@@ -102,10 +105,26 @@ def train(net, train_iter, test_iter, loss, num_epochs, batch_size, trainer):
             train_loss_sum += lss.mean().asscalar()
             train_acc_sum += accuracy(y_hat, y)
         test_acc = evaluate_accuracy(test_iter, net)
+        if test_acc > highest_acc:
+            highest_acc = test_acc
+            highest_epoch = epoch
         print('epoch %d, loss %.4f, train acc %.3f, test acc %.3f time %.1f sec'
               % (epoch, train_loss_sum / len(train_iter),
                  train_acc_sum / len(train_iter), test_acc, time.time() - start))
         net.save_params(SAVE_MODEL_PATH % epoch)
+    print("highest epoch & acc: %d, %f" % (highest_epoch, highest_acc))
+    evaluate_model(net, highest_epoch)
+
+
+def evaluate_model(net, epoch):
+    net.load_params(SAVE_MODEL_PATH % epoch, ctx=CTX)
+    y_hat = net(x_test)
+    result = nd.concat(y_test.expand_dims(axis=1), y_hat, dim=1)
+    np.save("result_crcnn.npy", result.asnumpy())
+    predict_list = y_hat.argmax(axis=1).asnumpy().astype(np.int).tolist()
+    label_list = y_test.astype(np.int).asnumpy().tolist()
+    print(precision_recall_fscore_support(label_list, predict_list, average='weighted'))
+    print(classification_report(label_list, predict_list))
 
 
 train(net, train_data, test_data, loss, num_epochs, batch_size, trainer)
