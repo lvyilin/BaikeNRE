@@ -6,7 +6,7 @@ from mxnet import gluon, init, autograd, nd
 from mxnet.gluon import loss as gloss, nn, rnn
 
 CWD = os.getcwd()
-SAVE_MODEL_PATH = os.path.join(CWD, "net_params", "gru_att", "net_gru_att_epoch%d.params")
+SAVE_MODEL_PATH = os.path.join(CWD, "net_params", "lstm_att", "net_lstm_att_epoch%d.params")
 SENTENCE_DIMENSION = 100
 DIMENSION = SENTENCE_DIMENSION
 FIXED_WORD_LENGTH = 60

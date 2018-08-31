@@ -7,7 +7,7 @@ from mxnet.gluon import nn, rnn
 from sklearn.metrics import precision_recall_fscore_support, classification_report
 
 CWD = os.getcwd()
-MODEL_PARAMS_PATH = CWD + "\\net_params\\cnssnn\\net_cnssnn_epoch54.params"
+MODEL_PARAMS_PATH = os.path.join(CWD, "net_params", "cnssnn", "net_cnssnn_epoch54.params")
 WORD_DIMENSION = 100
 POS_DIMENSION = 5
 DIMENSION = WORD_DIMENSION + 2 * POS_DIMENSION

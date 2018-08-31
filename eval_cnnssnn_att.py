@@ -6,7 +6,7 @@ from mxnet.gluon import nn, rnn
 from sklearn.metrics import precision_recall_fscore_support
 
 CWD = os.getcwd()
-MODEL_PARAMS_PATH = CWD + "\\net_params\\cnssnn_att\\net_cnssnn_att_epoch80.params"
+MODEL_PARAMS_PATH = os.path.join(CWD, "net_params", "cnssnn_att", "net_cnssnn_att_epoch80.params")
 WORD_DIMENSION = 100
 POS_DIMENSION = 5
 DIMENSION = WORD_DIMENSION + 2 * POS_DIMENSION
@@ -50,7 +50,7 @@ class Network(nn.Block):
             self.center_out.add(nn.Dense(200, activation="relu"))
             self.output = nn.Sequential()
             self.output.add(nn.Dropout(0.5))
-            self.output.add(nn.Dense(6))
+            self.output.add(nn.Dense(11))
 
     def forward(self, input_data):
         e1_vec_start = FIXED_WORD_LENGTH * DIMENSION
