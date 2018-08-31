@@ -28,9 +28,7 @@ def get_entity_vec(entity_name):
 
 
 wordvec = KeyedVectors.load(WORDVEC, mmap='r')
-wordvec['UNK'] = np.zeros(DIMENSION)
-wordvec['BLANK'] = np.zeros(DIMENSION)
-
+PLACEHOLDER = np.zeros(DIMENSION)
 POS_VECTOR = np.random.random((FIXED_WORD_LENGTH * 2, POS_DIMENSION))
 
 output_idx = []
@@ -67,7 +65,7 @@ with open(CORPUS, "r", encoding="utf8") as f:
                 # entity_b_pos = i
 
             if sentence[i] not in wordvec:
-                word_vector = wordvec['UNK']
+                word_vector = PLACEHOLDER
             else:
                 word_vector = wordvec[sentence[i]]
             sentence_vector.append(word_vector)
@@ -103,7 +101,7 @@ with open(CORPUS, "r", encoding="utf8") as f:
             relative_pos.append(pos_vec)
         if len(sentence_vector) < FIXED_WORD_LENGTH:
             for i in range(FIXED_WORD_LENGTH - len(sentence_vector)):
-                sentence_vector.append(wordvec['BLANK'])
+                sentence_vector.append(PLACEHOLDER)
                 pos_vec = np.concatenate((POS_VECTOR[FIXED_WORD_LENGTH, :], POS_VECTOR[FIXED_WORD_LENGTH, :]))
                 relative_pos.append(pos_vec)
 
