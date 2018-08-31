@@ -31,17 +31,17 @@ print(x_all.shape, y_all.shape)
 class Network(nn.Block):
     def __init__(self, prefix=None, params=None):
         super().__init__(prefix, params)
+        with self.name_scope():
+            self.gru = rnn.LSTM(64, num_layers=1, bidirectional=True, dropout=0.2)
+            self.att = nn.Sequential()
+            self.att.add(nn.Dense(1, flatten=False,
+                                  activation="sigmoid"))
+            self.att_out = nn.Sequential()
+            self.att_out.add(nn.Dense(100, activation="relu"))
 
-        self.gru = rnn.LSTM(64, num_layers=1, bidirectional=True, dropout=0.2)
-        self.att = nn.Sequential()
-        self.att.add(nn.Dense(1, flatten=False,
-                              activation="sigmoid"))
-        self.att_out = nn.Sequential()
-        self.att_out.add(nn.Dense(100, activation="relu"))
-
-        self.output = nn.Sequential()
-        self.output.add(nn.Dropout(0.5))
-        self.output.add(nn.Dense(11))
+            self.output = nn.Sequential()
+            self.output.add(nn.Dropout(0.5))
+            self.output.add(nn.Dense(11))
 
     def forward(self, input_data):
         x = nd.transpose(input_data, axes=(1, 0, 2))
@@ -56,7 +56,7 @@ class Network(nn.Block):
 
 
 net = Network()
-net.load_parameters(MODEL_PARAMS_PATH)
+net.load_params(MODEL_PARAMS_PATH)
 print(net)
 
 label_list = y_all.tolist()

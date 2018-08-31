@@ -41,10 +41,10 @@ x_test = x_test.astype(np.float32)
 y_test = y_test.astype(np.float32)
 print(x_train.shape, x_test.shape)
 
-x_train = nd.array(x_train).as_in_context(CTX)
-y_train = nd.array(y_train).as_in_context(CTX)
-x_test = nd.array(x_test).as_in_context(CTX)
-y_test = nd.array(y_test).as_in_context(CTX)
+x_train = nd.array(x_train, ctx=CTX)
+y_train = nd.array(y_train, ctx=CTX)
+x_test = nd.array(x_test, ctx=CTX)
+y_test = nd.array(y_test, ctx=CTX)
 
 decay_rate = 0.1
 epochs = 200
@@ -98,7 +98,7 @@ def train(net, train_iter, test_iter):
         print('epoch %d, loss %.4f, train acc %.3f, test acc %.3f time %.1f sec'
               % (epoch, train_loss_sum / len(train_iter),
                  train_acc_sum / len(train_iter), test_acc, time.time() - start))
-        net.save_parameters(SAVE_MODEL_PATH % epoch)
+        net.save_params(SAVE_MODEL_PATH % epoch)
 
 
 class Network(nn.Block):

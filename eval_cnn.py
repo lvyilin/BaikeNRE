@@ -27,16 +27,16 @@ y_all = y_all.astype(np.int)
 print(x_all.shape, y_all.shape)
 
 net = nn.Sequential()
-# CNN, CR-CNN
-# net.add(nn.Conv2D(256, kernel_size=(5, DIMENSION), padding=(1, 0), activation='relu'))
-net.add(nn.Conv2D(256, kernel_size=(3, DIMENSION), padding=(1, 0), activation='relu'))
-# net.add(nn.MaxPool2D(pool_size=(FIXED_WORD_LENGTH - 2, 1)))
-net.add(nn.MaxPool2D(pool_size=(FIXED_WORD_LENGTH, 1)))
-net.add(nn.Dense(256, activation='relu'))
-net.add(nn.Dropout(0.5))
-net.add(nn.Dense(11))
+with net.name_scope():
+    # net.add(nn.Conv2D(256, kernel_size=(5, DIMENSION), padding=(1, 0), activation='relu'))
+    net.add(nn.Conv2D(256, kernel_size=(3, DIMENSION), padding=(1, 0), activation='relu'))
+    # net.add(nn.MaxPool2D(pool_size=(FIXED_WORD_LENGTH - 2, 1)))
+    net.add(nn.MaxPool2D(pool_size=(FIXED_WORD_LENGTH, 1)))
+    net.add(nn.Dense(256, activation='relu'))
+    net.add(nn.Dropout(0.5))
+    net.add(nn.Dense(11))
 
-net.load_parameters(MODEL_PARAMS_PATH)
+net.load_params(MODEL_PARAMS_PATH)
 print(net)
 
 label_list = y_all.tolist()

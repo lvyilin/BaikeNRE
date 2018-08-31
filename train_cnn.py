@@ -2,7 +2,8 @@ import os
 import time
 
 import numpy as np
-from mxnet import gluon, init, autograd
+import mxnet as mx
+from mxnet import gluon, init, autograd, nd
 from mxnet.gluon import loss as gloss, nn
 
 CWD = os.getcwd()
@@ -12,6 +13,9 @@ POS_DIMENSION = 5
 DIMENSION = SENTENCE_DIMENSION + 2 * POS_DIMENSION
 FIXED_WORD_LENGTH = 60
 ADAPTIVE_LEARNING_RATE = False
+
+CTX = mx.gpu(2)
+ctx = [CTX]
 
 input_train = np.load('data_train.npy')
 input_test = np.load('data_test.npy')
@@ -25,8 +29,6 @@ x_test = np.expand_dims(x_test, axis=1)
 y_test = input_test[:, 0]
 print(x_test.shape)
 print(y_test.shape)
-print(y_train[0:5])
-print(y_test[0:5])
 
 x_train = x_train.astype(np.float32)
 y_train = y_train.astype(np.float32)
@@ -34,24 +36,22 @@ x_test = x_test.astype(np.float32)
 y_test = y_test.astype(np.float32)
 print(x_train.shape, x_test.shape)
 
+x_train = nd.array(x_train, ctx=CTX)
+y_train = nd.array(y_train, ctx=CTX)
+x_test = nd.array(x_test, ctx=CTX)
+y_test = nd.array(y_test, ctx=CTX)
+
 net = nn.Sequential()
-# Simple DNN
-# net.add(nn.Dense(64, activation='relu'))
-# net.add(nn.Dense(32, activation='relu'))
-# net.add(nn.Dense(10))
-# net.initialize(ctx=ctx, init=init.Xavier())
+with net.name_scope():
+    # net.add(nn.Conv2D(256, kernel_size=(5, DIMENSION), padding=(1, 0), activation='relu'))
+    net.add(nn.Conv2D(256, kernel_size=(3, DIMENSION), padding=(1, 0), activation='relu'))
+    # net.add(nn.MaxPool2D(pool_size=(FIXED_WORD_LENGTH - 2, 1)))
+    net.add(nn.MaxPool2D(pool_size=(FIXED_WORD_LENGTH, 1)))
+    net.add(nn.Dense(256, activation='relu'))
+    net.add(nn.Dropout(0.5))
+    net.add(nn.Dense(11))
 
-# CNN, CR-CNN
-# net.add(nn.Conv2D(256, kernel_size=(5, DIMENSION), padding=(1, 0), activation='relu'))
-net.add(nn.Conv2D(256, kernel_size=(3, DIMENSION), padding=(1, 0), activation='relu'))
-# net.add(nn.MaxPool2D(pool_size=(FIXED_WORD_LENGTH - 2, 1)))
-
-net.add(nn.MaxPool2D(pool_size=(FIXED_WORD_LENGTH, 1)))
-net.add(nn.Dense(256, activation='relu'))
-net.add(nn.Dropout(0.5))
-net.add(nn.Dense(11))
-
-net.initialize(init=init.Xavier())
+net.collect_params().initialize(init=init.Xavier(), ctx=ctx)
 
 print(net)
 
@@ -79,6 +79,7 @@ def accuracy(y_hat, y):
 def evaluate_accuracy(data_iter, net):
     acc = 0
     for X, y in data_iter:
+        y = y.copyto(CTX)
         acc += accuracy(net(X), y)
     return acc / len(data_iter)
 
@@ -92,6 +93,7 @@ def train(net, train_iter, test_iter, loss, num_epochs, batch_size, trainer):
             print("learning_rate decay: %f" % trainer.learning_rate)
         start = time.time()
         for X, y in train_iter:
+            y = y.copyto(CTX)
             with autograd.record():
                 y_hat = net(X)
                 lss = loss(y_hat, y)
@@ -103,7 +105,7 @@ def train(net, train_iter, test_iter, loss, num_epochs, batch_size, trainer):
         print('epoch %d, loss %.4f, train acc %.3f, test acc %.3f time %.1f sec'
               % (epoch, train_loss_sum / len(train_iter),
                  train_acc_sum / len(train_iter), test_acc, time.time() - start))
-        net.save_parameters(SAVE_MODEL_PATH % epoch)
+        net.save_params(SAVE_MODEL_PATH % epoch)
 
 
 train(net, train_data, test_data, loss, num_epochs, batch_size, trainer)

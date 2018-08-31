@@ -12,15 +12,17 @@ DIMENSION = SENTENCE_DIMENSION
 FIXED_WORD_LENGTH = 60
 ADAPTIVE_LEARNING_RATE = True
 
+CTX = mx.cpu(0)
+ctx = [CTX]
+
 input_train = np.load('data_train_rnn.npy')
 input_test = np.load('data_test_rnn.npy')
+
 x_train = input_train[:, 1:].reshape((input_train.shape[0], FIXED_WORD_LENGTH, DIMENSION))
-# x_train = np.expand_dims(x_train, axis=1)
 y_train = input_train[:, 0]
 print(x_train.shape)
 print(y_train.shape)
 x_test = input_test[:, 1:].reshape((input_test.shape[0], FIXED_WORD_LENGTH, DIMENSION))
-# x_test = np.expand_dims(x_test, axis=1)
 y_test = input_test[:, 0]
 print(x_test.shape)
 print(y_test.shape)
@@ -31,21 +33,26 @@ x_test = x_test.astype(np.float32)
 y_test = y_test.astype(np.float32)
 print(x_train.shape, x_test.shape)
 
+x_train = nd.array(x_train, ctx=CTX)
+y_train = nd.array(y_train, ctx=CTX)
+x_test = nd.array(x_test, ctx=CTX)
+y_test = nd.array(y_test, ctx=CTX)
+
 
 class Network(nn.Block):
     def __init__(self, prefix=None, params=None):
         super().__init__(prefix, params)
+        with self.name_scope():
+            self.gru = rnn.LSTM(64, num_layers=1, bidirectional=True, dropout=0.2)
+            self.att = nn.Sequential()
+            self.att.add(nn.Dense(1, flatten=False,
+                                  activation="sigmoid"))
+            self.att_out = nn.Sequential()
+            self.att_out.add(nn.Dense(100, activation="relu"))
 
-        self.gru = rnn.LSTM(64, num_layers=1, bidirectional=True, dropout=0.2)
-        self.att = nn.Sequential()
-        self.att.add(nn.Dense(1, flatten=False,
-                              activation="sigmoid"))
-        self.att_out = nn.Sequential()
-        self.att_out.add(nn.Dense(100, activation="relu"))
-
-        self.output = nn.Sequential()
-        self.output.add(nn.Dropout(0.5))
-        self.output.add(nn.Dense(11))
+            self.output = nn.Sequential()
+            self.output.add(nn.Dropout(0.5))
+            self.output.add(nn.Dense(11))
 
     def forward(self, input_data):
         x = nd.transpose(input_data, axes=(1, 0, 2))
@@ -60,7 +67,7 @@ class Network(nn.Block):
 
 
 net = Network()
-net.initialize(init=init.Xavier())
+net.initialize(init=init.Xavier(), ctx=ctx)
 print(net)
 
 batch_size = 128
@@ -86,6 +93,7 @@ def accuracy(y_hat, y):
 def evaluate_accuracy(data_iter, net):
     acc = 0
     for X, y in data_iter:
+        y = y.copyto(CTX)
         acc += accuracy(net(X), y)
     return acc / len(data_iter)
 
@@ -99,7 +107,7 @@ def train(net, train_iter, test_iter, loss, num_epochs, batch_size, trainer):
             print("learning_rate decay: %f" % trainer.learning_rate)
         start = time.time()
         for X, y in train_iter:
-            # print(X.shape)
+            y = y.copyto(CTX)
             with autograd.record():
                 y_hat = net(X)
                 l = loss(y_hat, y)
@@ -111,7 +119,7 @@ def train(net, train_iter, test_iter, loss, num_epochs, batch_size, trainer):
         print('epoch %d, loss %.4f, train acc %.3f, test acc %.3f time %.1f sec'
               % (epoch, train_l_sum / len(train_iter),
                  train_acc_sum / len(train_iter), test_acc, time.time() - start))
-        net.save_parameters(SAVE_MODEL_PATH % epoch)
+        net.save_params(SAVE_MODEL_PATH % epoch)
 
 
 train(net, train_data, test_data, loss, num_epochs, batch_size, trainer)

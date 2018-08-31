@@ -18,10 +18,10 @@ MASK_LENGTH = ENTITY_DEGREE
 ENTITY_EDGE_VEC_LENGTH = ENTITY_DEGREE * (WORD_DIMENSION * 2)
 VEC_LENGTH = DIMENSION * FIXED_WORD_LENGTH + ENTITY_EDGE_VEC_LENGTH * 2
 
-input_test = np.load('data_test_cnssnn.npy')
+input_test = np.load('data_test_cnssnn_id.npy')
 # input_test = input_test[input_test[:, 0] == PREDICT_VALUE]
 
-x_all = input_test[:, 3:]
+x_all = input_test[:, 4:]
 y_all = input_test[:, 0]
 # y_all[:] = PREDICT_INDEX
 print(x_all.shape)
@@ -107,7 +107,7 @@ class Network(nn.Block):
 
 
 net = Network()
-net.load_parameters(MODEL_PARAMS_PATH)
+net.load_params(MODEL_PARAMS_PATH)
 print(net)
 
 label_list = y_test.tolist()
