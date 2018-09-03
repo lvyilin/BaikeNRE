@@ -8,12 +8,12 @@ from mxnet.gluon import loss as gloss, nn
 from sklearn.metrics import precision_recall_fscore_support, classification_report
 
 CWD = os.getcwd()
-SAVE_MODEL_PATH = os.path.join(CWD, "net_params", "pcnn", "net_pcnn_epoch%d_12610.params")
+SAVE_MODEL_PATH = os.path.join(CWD, "net_params", "pcnn_att", "net_pcnn_att_epoch%d_12610.params")
 SENTENCE_DIMENSION = 100
 POS_DIMENSION = 5
 DIMENSION = SENTENCE_DIMENSION + 2 * POS_DIMENSION
 FIXED_WORD_LENGTH = 60
-ADAPTIVE_LEARNING_RATE = True
+ADAPTIVE_LEARNING_RATE = False
 
 CTX = mx.cpu(0)
 ctx = [CTX]
@@ -49,6 +49,10 @@ class PCNN(nn.Block):
         with self.name_scope():
             self.conv = nn.Conv2D(230, kernel_size=[3, DIMENSION], padding=[2, 0], strides=1)
             self.pmp = nn.MaxPool2D(pool_size=[FIXED_WORD_LENGTH, 1])
+
+            self.att = nn.Sequential()
+            self.att.add(nn.Dense(1, flatten=False,
+                                  activation="sigmoid"))
 
             self.output = nn.Sequential()
             self.output.add(nn.Flatten())
@@ -99,9 +103,13 @@ class PCNN(nn.Block):
         o1 = self.pmp(be1)
         o2 = self.pmp(aes)
         o3 = self.pmp(be2)
-
         out = nd.concat(o1, o2, o3, dim=2)
-        y = self.output(out)
+        out = nd.tanh(out)
+
+        a = self.att(out)
+        a = nd.softmax(a, axis=1)
+        s = a * out
+        y = self.output(s)
         return y
 
 
@@ -111,7 +119,7 @@ net.collect_params().initialize(init=init.Xavier(), ctx=ctx)
 print(net)
 
 batch_size = 128
-num_epochs = 100
+num_epochs = 300
 decay_rate = 0.1
 gap = 25
 loss = gloss.SoftmaxCrossEntropyLoss()
@@ -156,7 +164,7 @@ def train(net, train_iter, test_iter, loss, num_epochs, batch_size, trainer):
                 y_hat = net(X)
                 lss = loss(y_hat, y)
             lss.backward()
-            trainer.step(batch_size)
+            trainer.step(batch_size, ignore_stale_grad=True)
             train_loss_sum += lss.mean().asscalar()
             train_acc_sum += accuracy(y_hat, y)
         test_acc = evaluate_accuracy(test_iter, net)
@@ -175,7 +183,7 @@ def evaluate_model(net, epoch):
     net.load_params(SAVE_MODEL_PATH % epoch, ctx=CTX)
     y_hat = net(x_test)
     result = nd.concat(y_test.expand_dims(axis=1), y_hat, dim=1)
-    np.save("result_pcnn.npy", result.asnumpy())
+    np.save("result_pcnn_att.npy", result.asnumpy())
     predict_list = y_hat.argmax(axis=1).asnumpy().astype(np.int).tolist()
     label_list = y_test.astype(np.int).asnumpy().tolist()
     print(precision_recall_fscore_support(label_list, predict_list, average='weighted'))
