@@ -8,7 +8,7 @@ from mxnet.gluon import loss as gloss, nn, rnn
 from sklearn.metrics import precision_recall_fscore_support, classification_report
 
 CWD = os.getcwd()
-SAVE_MODEL_PATH = os.path.join(CWD, "net_params", "cnssnn", "net_cnssnn_epoch%d_12610.params")
+SAVE_MODEL_PATH = os.path.join(CWD, "net_params", "cnssnn_desc", "net_cnssnn_desc_epoch%d_12610.params")
 WORD_DIMENSION = 100
 POS_DIMENSION = 5
 DIMENSION = WORD_DIMENSION + 2 * POS_DIMENSION
@@ -19,13 +19,14 @@ MASK_LENGTH = ENTITY_DEGREE
 ENTITY_EDGE_VEC_LENGTH = ENTITY_DEGREE * (WORD_DIMENSION * 2)
 VEC_LENGTH = DIMENSION * FIXED_WORD_LENGTH + ENTITY_EDGE_VEC_LENGTH * 2
 ADAPTIVE_LEARNING_RATE = True
+DESC_LOSS_RATE = 1
 
-CTX = mx.cpu(0)
+CTX = mx.gpu(1)
 ctx = [CTX]
 fail_id_file = open("fail_id_cnssnn.txt", "w")
 
-input_train = np.load('data_train_cnssnn_id_12610.npy')
-input_test = np.load('data_test_cnssnn_id_12610.npy')
+input_train = np.load('data_train_cnssnn_id_desc.npy')
+input_test = np.load('data_test_cnssnn_id_desc.npy')
 
 x_train = input_train[:, 4:]
 y_train = input_train[:, 0:2]
@@ -70,7 +71,7 @@ def evaluate_accuracy(data_iter, net):
     acc = 0
     fail_id = []
     for X, y in data_iter:
-        a, b = accuracy_with_flag(net(X), y[:, 0])
+        a, b = accuracy_with_flag(net(X[:, 1:]), y[:, 0])
         acc += a
         for i in range(len(b)):
             if not b[i]:
@@ -91,8 +92,8 @@ def train(net, train_iter, test_iter):
             print("learning_rate decay: %f" % trainer.learning_rate)
         for X, y in train_iter:
             with autograd.record():
-                y_hat = net(X)
-                lss = loss(y_hat, y[:, 0])
+                y_hat = net(X[:, 1:])
+                lss = loss(y_hat, y[:, 0]) + DESC_LOSS_RATE * (nd.sum(X[:, 0], axis=0))
             lss.backward()
             trainer.step(batch_size, ignore_stale_grad=True)
             train_loss_sum += lss.mean().asscalar()
@@ -114,7 +115,7 @@ def evaluate_model(net, epoch):
     y_hat = net(x_test)
     y_test_0 = y_test[:, 0]
     result = nd.concat(y_test_0.expand_dims(axis=1), y_hat, dim=1)
-    np.save("result_cnssnn.npy", result.asnumpy())
+    np.save("result_cnssnn_desc.npy", result.asnumpy())
     predict_list = y_hat.argmax(axis=1).asnumpy().astype(np.int).tolist()
     label_list = y_test_0.astype(np.int).asnumpy().tolist()
     print(precision_recall_fscore_support(label_list, predict_list, average='weighted'))
@@ -144,7 +145,6 @@ class Network(nn.Block):
         e1_vec_start = FIXED_WORD_LENGTH * DIMENSION
         x = input_data[:, :e1_vec_start].reshape(
             (input_data.shape[0], FIXED_WORD_LENGTH, DIMENSION))  # (m, 60, 110)
-
         e1neimask = input_data[:, e1_vec_start:e1_vec_start + MASK_LENGTH]  # (m, 51)
         e1edge = input_data[:, e1_vec_start + MASK_LENGTH:e1_vec_start + MASK_LENGTH + ENTITY_EDGE_VEC_LENGTH].reshape(
             (input_data.shape[0], ENTITY_DEGREE, WORD_DIMENSION * 2))  # (m, 51, 200)

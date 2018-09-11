@@ -77,7 +77,7 @@ def accuracy(y_hat, y):
     return (y_hat.argmax(axis=1) == y.astype('float32')).mean().asscalar()
 
 
-def evaluate_accuracy(data_iter, net):
+def evaluate_accuracy(net, data_iter):
     acc = 0
     for X, y in data_iter:
         y = y.copyto(CTX)
