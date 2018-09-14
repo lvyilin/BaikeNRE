@@ -4,9 +4,14 @@ from gensim.test.utils import datapath
 from gensim.models import Word2Vec
 import os
 
+SemEval = True
+
 CWD = os.getcwd()
-sentences = LineSentence(datapath(os.path.join(CWD, 'separated_corpus_patch.txt')))
-model = Word2Vec(sentences, size=100, window=5, min_count=5, workers=4, iter=10)
+if SemEval:
+    sentences = LineSentence(datapath(os.path.join(CWD, 'corpus_SemEval.txt')))
+else:
+    sentences = LineSentence(datapath(os.path.join(CWD, 'separated_corpus_patch.txt')))
+model = Word2Vec(sentences, size=100, window=5, min_count=3, workers=4, iter=10)
 model.save("word2vec.model")
 model = Word2Vec.load("word2vec.model")
 
