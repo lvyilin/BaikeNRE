@@ -11,36 +11,16 @@ DIMENSION = 100
 POS_DIMENSION = 5
 FIXED_WORD_LENGTH = 60
 
-entityvec_key = []
-entityvec_value = np.load('entity2vec_SemEval_value.npy')
-
-with open("entity2vec_SemEval_key.txt", "r", encoding="utf8") as f:
-    for line in f:
-        entityvec_key.append(line.strip())
-
-
-def get_entity_vec(entity_name):
-    try:
-        idx = entityvec_key.index(entity_name)
-        return entityvec_value[idx]
-    except ValueError:
-        return np.zeros(entityvec_value[0].shape)
-
-
 wordvec = KeyedVectors.load(WORDVEC, mmap='r')
 PLACEHOLDER = np.zeros(DIMENSION)
 POS_VECTOR = np.random.random((FIXED_WORD_LENGTH * 2, POS_DIMENSION))
 
-for corpus, save_filename in ((CORPUS_TRAIN, "data_train_cnssnn_SemEval.npy"),
-                              (CORPUS_TEST, "data_test_cnssnn_SemEval.npy")):
-    output_idx = []
+for corpus, save_filename in ((CORPUS_TRAIN, "data_train_cnn_SemEval.npy"),
+                              (CORPUS_TEST, "data_test_cnn_SemEval.npy")):
     output_entity_pos = []
     output_relative_pos = []
     output_sentence = []
     output_relation = []
-    output_en1_vec = []
-    output_en2_vec = []
-
     with open(corpus, "r", encoding="utf8") as f:
         for line in f:
             content = line.strip().split("\t")
@@ -70,30 +50,20 @@ for corpus, save_filename in ((CORPUS_TRAIN, "data_train_cnssnn_SemEval.npy"),
                     pos_vec = np.concatenate((POS_VECTOR[FIXED_WORD_LENGTH, :], POS_VECTOR[FIXED_WORD_LENGTH, :]))
                     relative_pos.append(pos_vec)
 
-            output_idx.append(idx)
             output_sentence.append(sentence_vector)
             output_relation.append(relation)
             output_entity_pos.append([en1_pos, en2_pos])
             output_relative_pos.append(relative_pos)
-            output_en1_vec.append(get_entity_vec(en1))
-            output_en2_vec.append(get_entity_vec(en2))
 
     print("length of output_sentence: %d" % len(output_sentence))
 
-    np_idx = np.array(output_idx, dtype=int)
     np_sentence = np.array(output_sentence, dtype=float)
     np_relation = np.array(output_relation, dtype=int)
     np_entity_pos = np.array(output_entity_pos, dtype=int)
     np_relative_pos = np.array(output_relative_pos, dtype=float)
-    np_en1_vec = np.array(output_en1_vec, dtype=float)
-    np_en2_vec = np.array(output_en2_vec, dtype=float)
-
     print(np_sentence.shape)
     print(np_relative_pos.shape)
     print(np_entity_pos.shape)
-    print(np_en1_vec.shape)
-    print(np_en2_vec.shape)
-    np_entity_vec = np.concatenate((np_en1_vec, np_en2_vec), axis=1)
 
     np_sentence_matrix = np.concatenate((np_sentence, np_relative_pos), axis=2)
     print(np_sentence_matrix.shape)
@@ -102,13 +72,7 @@ for corpus, save_filename in ((CORPUS_TRAIN, "data_train_cnssnn_SemEval.npy"),
     entity_pos_vec = np_entity_pos.reshape(np_entity_pos.shape[0], 2)
 
     # relation + entity position + sentence_vec
-    conc = np.concatenate(
-        (np.expand_dims(np_relation, axis=1),
-         np.expand_dims(np_idx, axis=1),
-         entity_pos_vec,
-         sentence_vec,
-         np_entity_vec),
-        axis=1)
+    conc = np.concatenate((np.expand_dims(np_relation, axis=1), entity_pos_vec, sentence_vec), axis=1)
     print(conc.shape)
 
     tag_0 = conc[conc[:, 0] == 0]

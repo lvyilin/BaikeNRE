@@ -3,10 +3,11 @@ import sqlite3
 
 import numpy as np
 from gensim.models import KeyedVectors
+from matplotlib import pyplot as plt
 
 CWD = os.getcwd()
 WORDVEC = os.path.join(CWD, "wordvectors.kv")
-CORPUS = os.path.join(CWD, "separated_corpus_with_label_patch.txt")
+CORPUS = os.path.join(CWD, "separated_corpus_with_label_patch_amend_id.txt")
 DIMENSION = 100
 POS_DIMENSION = 5
 FIXED_WORD_LENGTH = 60
@@ -16,49 +17,54 @@ conn = sqlite3.connect('baike.db')
 c = conn.cursor()
 
 wordvec = KeyedVectors.load(WORDVEC, mmap='r')
-wordvec['UNK'] = np.zeros(DIMENSION)
-wordvec['BLANK'] = np.zeros(DIMENSION)
+
 entity_set = set()
 with open(CORPUS, "r", encoding="utf8") as f:
     for line in f:
         content = line.strip().split()
-        entity_a = content[0]
-        entity_b = content[1]
-        entity_set.add(entity_a)
-        entity_set.add(entity_b)
+        entity_a = content[1]
+        entity_b = content[2]
+        for entity in (entity_a, entity_b):
+            if entity in wordvec:
+                entity_set.add(entity)
 
-entityvec_dict = {}
-# entityvec = KeyedVectors(vector_size=len(entity_set))
-
+entity_dict = {}
 for entity in entity_set:
-    output_entity_vec = []
-    if entity not in wordvec:
-        continue
-    entity_vec = wordvec[entity]
-    output_entity_vec.append(entity_vec)
-
     neighbor_entity_set = set()
     c.execute(
         "select entity_b from Data where entity_a=? union select entity_b from Data3 where entity_a=? GROUP BY entity_b",
         (entity, entity))
     for row in c:
-        neighbor_entity_set.add(row[0])
+        if row[0] in entity_set:
+            neighbor_entity_set.add(row[0])
     c.execute(
         "select entity_a from Data where entity_b=? union select entity_a from Data3 where entity_b=? GROUP BY entity_a ",
         (entity, entity))
     for row in c:
-        neighbor_entity_set.add(row[0])
+        if row[0] in entity_set:
+            neighbor_entity_set.add(row[0])
+    entity_dict[entity] = neighbor_entity_set
 
-    if len(neighbor_entity_set) > MAX_ENTITY_DEGREE:
-        continue
+entity_len = [len(x) for x in entity_dict.values()]
+print(len(entity_len))
+plt.hist(entity_len, bins='auto')
+plt.show()
 
-    for neighbor_entity in neighbor_entity_set:
-        if neighbor_entity in wordvec:
-            output_entity_vec.append(wordvec[neighbor_entity])
+entityvec_dict = {}
+for entity, neighbor_entity_set in entity_dict.items():
+    neighbor_entity_list = list(neighbor_entity_set)
+    if len(neighbor_entity_list) > MAX_ENTITY_DEGREE:
+        print("over max degree: %s" % entity)
+        neighbor_entity_list[:] = neighbor_entity_list[:MAX_ENTITY_DEGREE]
+    output_entity_vec = []
+    entity_vec = wordvec[entity]
+    output_entity_vec.append(entity_vec)
+    for neighbor_entity in neighbor_entity_list:
+        output_entity_vec.append(wordvec[neighbor_entity])
     output_edge_vec = []
     for i in range(len(output_entity_vec)):
         # edge_vec =  neigh + self
-        edge_vec = np.concatenate((output_entity_vec[i], output_entity_vec[0]))
+        edge_vec = np.concatenate((output_entity_vec[i], entity_vec))
         output_edge_vec.append(edge_vec)
 
     mask = np.concatenate((np.ones(len(output_edge_vec)), np.zeros(ENTITY_DEGREE - len(output_edge_vec))))
@@ -73,5 +79,5 @@ with open("entity2vec_key.txt", "w", encoding="utf8") as f:
     for k in entityvec_dict.keys():
         f.write(k + "\n")
 
-vals = np.array(list(entityvec_dict.values()), dtype=float)
-np.save("entity2vec_value.npy", vals)
+values = np.array(list(entityvec_dict.values()), dtype=float)
+np.save("entity2vec_value.npy", values)
