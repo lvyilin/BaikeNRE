@@ -131,6 +131,25 @@ for corpus, save_filename in ((CORPUS_TRAIN, "data_train_cnssnn_SemEval.npy"),
     tag_17 = conc[conc[:, 0] == 17]
     # tag_18 = conc[conc[:, 0] == 18]
 
+    tag_0[:, 0] = 0
+    tag_1[:, 0] = 0
+    tag_2[:, 0] = 1
+    tag_3[:, 0] = 1
+    tag_4[:, 0] = 2
+    tag_5[:, 0] = 2
+    tag_6[:, 0] = 3
+    tag_7[:, 0] = 3
+    tag_8[:, 0] = 4
+    tag_9[:, 0] = 4
+    tag_10[:, 0] = 5
+    tag_11[:, 0] = 5
+    tag_12[:, 0] = 6
+    tag_13[:, 0] = 6
+    tag_14[:, 0] = 7
+    tag_15[:, 0] = 7
+    tag_16[:, 0] = 8
+    tag_17[:, 0] = 8
+
     filter = np.concatenate((
         tag_0, tag_1, tag_2, tag_3, tag_4, tag_5, tag_6, tag_7, tag_8, tag_9,
         tag_10, tag_11, tag_12, tag_13, tag_14, tag_15, tag_16, tag_17), axis=0)

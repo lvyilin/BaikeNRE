@@ -45,14 +45,13 @@ class Network(nn.Block):
     def __init__(self, prefix=None, params=None):
         super().__init__(prefix, params)
         with self.name_scope():
-            self.gru = rnn.LSTM(64, num_layers=1, bidirectional=True, dropout=0.3)
+            self.lstm = rnn.LSTM(64, num_layers=1, bidirectional=True, layout="NTC", dropout=0.3)
             self.output = nn.Sequential()
             self.output.add(nn.Dropout(0.5))
-            self.output.add(nn.Dense(18))
+            self.output.add(nn.Dense(9))
 
     def forward(self, input_data):
-        x = nd.transpose(input_data, axes=(1, 0, 2))
-        h = nd.transpose(self.gru(x), axes=(1, 0, 2))
+        h = self.lstm(input_data)
         return self.output(h)
 
 
@@ -60,15 +59,15 @@ net = Network()
 net.collect_params().initialize(init=init.Xavier(), ctx=ctx)
 print(net)
 
-batch_size = 128
-num_epochs = 100
+batch_size = 100
+num_epochs = 120
 decay_rate = 0.1
 gap = 25
 loss = gloss.SoftmaxCrossEntropyLoss()
 # trainer = gluon.Trainer(net.collect_params(), 'AdaDelta', {'rho': 0.95, 'epsilon': 1e-6, 'wd': 0.01})
 # trainer = gluon.Trainer(net.collect_params(), 'sgd', {'learning_rate': .01})
 if ADAPTIVE_LEARNING_RATE:
-    trainer = gluon.Trainer(net.collect_params(), 'adam', {'learning_rate': 0.01})
+    trainer = gluon.Trainer(net.collect_params(), 'adam', {'learning_rate': 0.01, 'wd': 1e-5})
 else:
     trainer = gluon.Trainer(net.collect_params(), 'adam', {'learning_rate': 0.0001})
 
@@ -94,7 +93,7 @@ def train(net, train_iter, test_iter, loss, num_epochs, batch_size, trainer):
     for epoch in range(1, num_epochs + 1):
         train_l_sum = 0
         train_acc_sum = 0
-        if ADAPTIVE_LEARNING_RATE and epoch % gap == 0:
+        if ADAPTIVE_LEARNING_RATE and epoch % gap == 0 and trainer.learning_rate > 0.0001:
             trainer.set_learning_rate(trainer.learning_rate * decay_rate)
             print("learning_rate decay: %f" % trainer.learning_rate)
         start = time.time()

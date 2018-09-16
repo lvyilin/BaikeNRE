@@ -8,7 +8,7 @@ from mxnet.gluon import loss as gloss, nn, rnn
 from sklearn.metrics import precision_recall_fscore_support, classification_report
 
 CWD = os.getcwd()
-SAVE_MODEL_PATH = os.path.join(CWD, "net_params", "cnssnn_SemEval", "net_cnssnn_epoch%d.params")
+SAVE_MODEL_PATH = os.path.join(CWD, "net_params", "cnssnn_pcnn_SemEval", "net_cnssnn_pcnn_epoch%d.params")
 WORD_DIMENSION = 100
 POS_DIMENSION = 5
 DIMENSION = WORD_DIMENSION + 2 * POS_DIMENSION
@@ -18,20 +18,20 @@ ENTITY_DEGREE = MAX_ENTITY_DEGREE + 1
 MASK_LENGTH = ENTITY_DEGREE
 ENTITY_EDGE_VEC_LENGTH = ENTITY_DEGREE * (WORD_DIMENSION * 2)
 VEC_LENGTH = DIMENSION * FIXED_WORD_LENGTH + ENTITY_EDGE_VEC_LENGTH * 2
-ADAPTIVE_LEARNING_RATE = True
+ADAPTIVE_LEARNING_RATE = False
 
-CTX = mx.gpu(0)
+CTX = mx.gpu(7)
 ctx = [CTX]
-fail_id_file = open("fail_id_cnssnn_SemEval.txt", "w")
+fail_id_file = open("fail_id_cnssnn_pcnn_SemEval.txt", "w")
 
 input_train = np.load('data_train_cnssnn_SemEval.npy')
 input_test = np.load('data_test_cnssnn_SemEval.npy')
 
-x_train = input_train[:, 4:]
+x_train = input_train[:, 2:]
 y_train = input_train[:, 0:2]
 print(x_train.shape)
 print(y_train.shape)
-x_test = input_test[:, 4:]
+x_test = input_test[:, 2:]
 y_test = input_test[:, 0:2]
 print(x_test.shape)
 print(y_test.shape)
@@ -48,7 +48,7 @@ x_test = nd.array(x_test, ctx=CTX)
 y_test = nd.array(y_test, ctx=CTX)
 
 decay_rate = 0.1
-epochs = 120
+epochs = 300
 gap = 50
 batch_size = 100
 loss = gloss.SoftmaxCrossEntropyLoss()
@@ -113,7 +113,7 @@ def evaluate_model(net, epoch):
     y_hat = net(x_test)
     y_test_0 = y_test[:, 0]
     result = nd.concat(y_test_0.expand_dims(axis=1), y_hat, dim=1)
-    np.save("result_cnssnn_SemEval.npy", result.asnumpy())
+    np.save("result_cnssnn_pcnn_SemEval.npy", result.asnumpy())
     predict_list = y_hat.argmax(axis=1).asnumpy().astype(np.int).tolist()
     label_list = y_test_0.astype(np.int).asnumpy().tolist()
     print(precision_recall_fscore_support(label_list, predict_list, average='macro'))
@@ -124,25 +124,32 @@ class Network(nn.Block):
     def __init__(self, **kwargs):
         super(Network, self).__init__(**kwargs)
         with self.name_scope():
-            self.gru = rnn.GRU(100, num_layers=1, bidirectional=True)
-            self.gru_out = nn.Sequential()
-            self.gru_out.add(nn.MaxPool2D(pool_size=(FIXED_WORD_LENGTH, 1)), )
-            self.gru_out.add(nn.Flatten())
-            self.gru_out.add(nn.Activation(activation='relu'))
+            self.conv = nn.Conv2D(230, kernel_size=[3, DIMENSION], padding=[2, 0], strides=1)
+            self.pmp = nn.MaxPool2D(pool_size=[FIXED_WORD_LENGTH, 1])
+            self.conv_out = nn.Sequential()
+            self.conv_out.add(nn.Flatten())
+            self.conv_out.add(nn.Activation(activation='relu'))
 
             self.center_att = nn.Sequential()
             self.center_att.add(nn.Dense(1, in_units=200, flatten=False,
                                          activation="sigmoid"))
             self.center_out = nn.Sequential()
-            self.center_out.add(nn.Dense(200, activation="relu"))
+            # self.center_out.add(nn.Dense(200, activation="relu"))
+            self.center_out.add(nn.Activation(activation='relu'))
+
             self.output = nn.Sequential()
             self.output.add(nn.Dropout(0.5))
-            self.output.add(nn.Dense(9))
+            self.output.add(nn.Dense(128, activation="sigmoid"))
+            self.output.add(nn.Dense(9, activation='tanh'))
 
     def forward(self, input_data):
+        ep1 = input_data[:, 0].astype(int).asnumpy().tolist()
+        ep2 = input_data[:, 1].astype(int).asnumpy().tolist()
+        input_data = input_data[:, 2:]
         e1_vec_start = FIXED_WORD_LENGTH * DIMENSION
         x = input_data[:, :e1_vec_start].reshape(
             (input_data.shape[0], FIXED_WORD_LENGTH, DIMENSION))  # (m, 60, 110)
+        x = nd.expand_dims(x, axis=1)
 
         e1neimask = input_data[:, e1_vec_start:e1_vec_start + MASK_LENGTH]  # (m, 51)
         e1edge = input_data[:, e1_vec_start + MASK_LENGTH:e1_vec_start + MASK_LENGTH + ENTITY_EDGE_VEC_LENGTH].reshape(
@@ -155,12 +162,36 @@ class Network(nn.Block):
             (input_data.shape[0], ENTITY_DEGREE, WORD_DIMENSION * 2))  # (m, 51,200)
         e2neigh = e2edge[:, :, :WORD_DIMENSION]
 
-        gru = self.gru
-        x = nd.transpose(x, axes=(1, 0, 2))
-        h = gru(x)
-        ht = nd.transpose(h, axes=(1, 0, 2))
-        gru_out = self.gru_out
-        y1 = gru_out(ht.expand_dims(1))  # (m,200)
+        # x.shape = (128, 1, 60, 110) NCHW
+        conv_result = nd.relu(self.conv(x))  # (128, 230, 62, 1) NCHW
+        be1_mask = nd.zeros(conv_result.shape, ctx=CTX)
+        aes_mask = nd.zeros(conv_result.shape, ctx=CTX)
+        be2_mask = nd.zeros(conv_result.shape, ctx=CTX)
+        #
+        be1_pad = nd.ones(conv_result.shape, ctx=CTX) * (-100)
+        aes_pad = nd.ones(conv_result.shape, ctx=CTX) * (-100)
+        be2_pad = nd.ones(conv_result.shape, ctx=CTX) * (-100)
+        for i in range(x.shape[0]):
+            if ep1[i] == 0:
+                ep1[i] += 1
+                ep2[i] += 1
+            be1_mask[i, :, :ep1[i], :] = 1
+            be1_pad[i, :, :ep1[i], :] = 0
+            aes_mask[i, :, ep1[i]:ep2[i], :] = 1
+            aes_pad[i, :, ep1[i]:ep2[i], :] = 0
+            be2_mask[i, :, ep2[i]:, :] = 1
+            be2_pad[i, :, ep2[i]:, :] = 0
+        be1 = conv_result * be1_mask
+        aes = conv_result * aes_mask
+        be2 = conv_result * be2_mask
+        be1 = be1 + be1_pad
+        aes = aes + aes_pad
+        be2 = be2 + be2_pad
+        o1 = self.pmp(be1)
+        o2 = self.pmp(aes)
+        o3 = self.pmp(be2)
+        out = nd.concat(o1, o2, o3, dim=2)  # (128, 230, 3, 1)
+        y1 = self.conv_out(out)
 
         att = self.center_att
         e1edge = nd.tanh(e1edge)
@@ -180,12 +211,10 @@ class Network(nn.Block):
         e2n = e2n.reshape((e2n.shape[0], 100))  # (m,100)
 
         center_y = nd.concat(e1n, e2n, dim=1)  # (m,200)
-        center_out = self.center_out
-        center_y = center_out(center_y)
+        center_y = self.center_out(center_y)
 
-        out = self.output
         y4 = nd.concat(y1, center_y, dim=1)
-        y5 = out(y4)
+        y5 = self.output(y4)
         return y5
 
 

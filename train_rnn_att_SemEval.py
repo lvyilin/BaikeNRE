@@ -1,32 +1,29 @@
-import os
 import time
-
+import os
 import numpy as np
 import mxnet as mx
 from mxnet import gluon, init, autograd, nd
-from mxnet.gluon import loss as gloss, nn
+from mxnet.gluon import loss as gloss, nn, rnn
 from sklearn.metrics import precision_recall_fscore_support, classification_report
 
 CWD = os.getcwd()
-SAVE_MODEL_PATH = os.path.join(CWD, "net_params", "cnn_SemEval", "net_cnn_epoch%d.params")
+SAVE_MODEL_PATH = os.path.join(CWD, "net_params", "lstm_att_SemEval", "net_lstm_att_epoch%d_12610.params")
 SENTENCE_DIMENSION = 100
-POS_DIMENSION = 5
-DIMENSION = SENTENCE_DIMENSION + 2 * POS_DIMENSION
+DIMENSION = SENTENCE_DIMENSION
 FIXED_WORD_LENGTH = 60
-ADAPTIVE_LEARNING_RATE = False
+ADAPTIVE_LEARNING_RATE = True
 
-CTX = mx.gpu(5)
+CTX = mx.gpu(0)
 ctx = [CTX]
 
-input_train = np.load('data_train_cnn_SemEval.npy')
-input_test = np.load('data_test_cnn_SemEval.npy')
-x_train = input_train[:, 3:].reshape((input_train.shape[0], FIXED_WORD_LENGTH, DIMENSION))
-x_train = np.expand_dims(x_train, axis=1)
+input_train = np.load('data_train_rnn_SemEval.npy')
+input_test = np.load('data_test_rnn_SemEval.npy')
+
+x_train = input_train[:, 1:].reshape((input_train.shape[0], FIXED_WORD_LENGTH, DIMENSION))
 y_train = input_train[:, 0]
 print(x_train.shape)
 print(y_train.shape)
-x_test = input_test[:, 3:].reshape((input_test.shape[0], FIXED_WORD_LENGTH, DIMENSION))
-x_test = np.expand_dims(x_test, axis=1)
+x_test = input_test[:, 1:].reshape((input_test.shape[0], FIXED_WORD_LENGTH, DIMENSION))
 y_test = input_test[:, 0]
 print(x_test.shape)
 print(y_test.shape)
@@ -42,18 +39,36 @@ y_train = nd.array(y_train, ctx=CTX)
 x_test = nd.array(x_test, ctx=CTX)
 y_test = nd.array(y_test, ctx=CTX)
 
-net = nn.Sequential()
-with net.name_scope():
-    # net.add(nn.Conv2D(256, kernel_size=(5, DIMENSION), padding=(1, 0), activation='relu'))
-    net.add(nn.Conv2D(256, kernel_size=(3, DIMENSION), padding=(1, 0), activation='relu'))
-    # net.add(nn.MaxPool2D(pool_size=(FIXED_WORD_LENGTH - 2, 1)))
-    net.add(nn.MaxPool2D(pool_size=(FIXED_WORD_LENGTH, 1)))
-    net.add(nn.Dense(256, activation='relu'))
-    net.add(nn.Dropout(0.5))
-    net.add(nn.Dense(18))
 
-net.collect_params().initialize(init=init.Xavier(), ctx=ctx)
+class Network(nn.Block):
+    def __init__(self, prefix=None, params=None):
+        super().__init__(prefix, params)
+        with self.name_scope():
+            self.gru = rnn.LSTM(64, num_layers=1, bidirectional=True, dropout=0.3)
+            self.att = nn.Sequential()
+            self.att.add(nn.Dense(1, flatten=False,
+                                  activation="sigmoid"))
+            self.att_out = nn.Sequential()
+            self.att_out.add(nn.Dense(100, activation="relu"))
 
+            self.output = nn.Sequential()
+            self.output.add(nn.Dropout(0.5))
+            self.output.add(nn.Dense(9))
+
+    def forward(self, input_data):
+        x = nd.transpose(input_data, axes=(1, 0, 2))
+        h = nd.transpose(self.gru(x), axes=(1, 0, 2))  # (m,60,100)
+        h = nd.tanh(h)
+        g = self.att(h)  # (m,60,1)
+        g = nd.softmax(g, axis=1)
+        gt = nd.transpose(g, axes=(0, 2, 1))  # (m,1,60)
+        n = nd.batch_dot(gt, h)
+        y = self.att_out(n)
+        return self.output(y)
+
+
+net = Network()
+net.initialize(init=init.Xavier(), ctx=ctx)
 print(net)
 
 batch_size = 100
@@ -62,10 +77,9 @@ decay_rate = 0.1
 gap = 25
 loss = gloss.SoftmaxCrossEntropyLoss()
 # trainer = gluon.Trainer(net.collect_params(), 'AdaDelta', {'rho': 0.95, 'epsilon': 1e-6, 'wd': 0.01})
-# trainer = gluon.Trainer(net.collect_params(), 'adam', {'learning_rate': 0.0001})
 # trainer = gluon.Trainer(net.collect_params(), 'sgd', {'learning_rate': .01})
 if ADAPTIVE_LEARNING_RATE:
-    trainer = gluon.Trainer(net.collect_params(), 'adam', {'learning_rate': 0.01})
+    trainer = gluon.Trainer(net.collect_params(), 'adam', {'learning_rate': 0.01, 'wd': 1e-5})
 else:
     trainer = gluon.Trainer(net.collect_params(), 'adam', {'learning_rate': 0.0001})
 
@@ -120,7 +134,7 @@ def evaluate_model(net, epoch):
     net.load_params(SAVE_MODEL_PATH % epoch, ctx=CTX)
     y_hat = net(x_test)
     result = nd.concat(y_test.expand_dims(axis=1), y_hat, dim=1)
-    np.save("result_crcnn_SemEval.npy", result.asnumpy())
+    np.save("result_lstm_att_SemEval.npy", result.asnumpy())
     predict_list = y_hat.argmax(axis=1).asnumpy().astype(np.int).tolist()
     label_list = y_test.astype(np.int).asnumpy().tolist()
     print(precision_recall_fscore_support(label_list, predict_list, average='macro'))

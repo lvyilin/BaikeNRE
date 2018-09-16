@@ -45,6 +45,14 @@ def getEntityPos(sentence: str, entity: str) -> int:
     return sentence.count(" ", 0, idx)
 
 
+def getStem(w):
+    try:
+        word = w[:-1] if w[-1] is 's' else w
+        return word
+    except IndexError:
+        return ""
+
+
 sentence_list = []
 for file, corpus in ((TRAIN_FILE, CORPUS_TRAIN), (TEST_FILE, CORPUS_TEST)):
     with open(file, "r", encoding="utf8") as fp, open(corpus, "w", encoding="utf8") as gp:
@@ -87,9 +95,12 @@ for file, corpus in ((TRAIN_FILE, CORPUS_TRAIN), (TEST_FILE, CORPUS_TEST)):
             for old in ("<e1>", "</e1>", "<e2>", "</e2>"):
                 sentence = sentence.replace(old, "")
 
-            en1 = ps.stem(en1)
-            en2 = ps.stem(en2)
-            sentence_stem = [ps.stem(w) for w in sentence.split(" ")]
+            # en1 = getStem(en1)
+            # en2 = getStem(en2)
+            en1 = ps.stem(en1.lower())
+            en2 = ps.stem(en2.lower())
+            sentence_stem = [ps.stem(w.lower()) for w in sentence.split(" ")]
+            # sentence_stem = [getStem(w) for w in sentence.split(" ")]
             sentence = " ".join(sentence_stem)
             sentence_list.append(sentence)
             gp.write("%d\t%s\t%s\t%d\t%d\t%d\t%s\n" % (id, en1, en2, en1_pos, en2_pos, relation, sentence))
