@@ -3,7 +3,7 @@ import time
 
 import numpy as np
 import mxnet as mx
-from mxnet import gluon, autograd, nd
+from mxnet import gluon, autograd, nd, init
 from mxnet.gluon import loss as gloss, nn, rnn
 from sklearn.metrics import precision_recall_fscore_support, classification_report
 
@@ -20,6 +20,8 @@ ENTITY_EDGE_VEC_LENGTH = ENTITY_DEGREE * (WORD_DIMENSION * 2)
 VEC_LENGTH = DIMENSION * FIXED_WORD_LENGTH + ENTITY_EDGE_VEC_LENGTH * 2
 ADAPTIVE_LEARNING_RATE = True
 DESC_LOSS_RATE = 1
+DESC_LENGTH = 80
+CNSSNN_START_POINT = WORD_DIMENSION * 2 + DESC_LENGTH * WORD_DIMENSION * 2
 
 CTX = mx.gpu(1)
 ctx = [CTX]
@@ -51,9 +53,7 @@ y_test = nd.array(y_test, ctx=CTX)
 decay_rate = 0.1
 epochs = 100
 gap = 50
-
 batch_size = 128
-loss = gloss.SoftmaxCrossEntropyLoss()
 
 train_data = gluon.data.DataLoader(gluon.data.ArrayDataset(x_train, y_train), batch_size, shuffle=True)
 test_data = gluon.data.DataLoader(gluon.data.ArrayDataset(x_test, y_test), batch_size, shuffle=False)
@@ -71,7 +71,7 @@ def evaluate_accuracy(data_iter, net):
     acc = 0
     fail_id = []
     for X, y in data_iter:
-        a, b = accuracy_with_flag(net(X[:, 1:]), y[:, 0])
+        a, b = accuracy_with_flag(net(X[:, CNSSNN_START_POINT:]), y[:, 0])
         acc += a
         for i in range(len(b)):
             if not b[i]:
@@ -80,9 +80,10 @@ def evaluate_accuracy(data_iter, net):
     return acc / len(data_iter)
 
 
-def train(net, train_iter, test_iter):
+def train(net, net2, train_iter, test_iter):
     highest_epoch = -1
     highest_acc = -1
+
     for epoch in range(1, epochs + 1):
         train_loss_sum = 0
         train_acc_sum = 0
@@ -92,8 +93,21 @@ def train(net, train_iter, test_iter):
             print("learning_rate decay: %f" % trainer.learning_rate)
         for X, y in train_iter:
             with autograd.record():
-                y_hat = net(X[:, 1:])
-                lss = loss(y_hat, y[:, 0]) + DESC_LOSS_RATE * (nd.sum(X[:, 0], axis=0))
+                en1 = X[:, 0:WORD_DIMENSION]
+                en2 = X[:, WORD_DIMENSION:WORD_DIMENSION * 2]
+                en1_desc = X[:, WORD_DIMENSION * 2:
+                                WORD_DIMENSION * 2 + DESC_LENGTH * WORD_DIMENSION] \
+                    .reshape((X.shape[0], DESC_LENGTH, WORD_DIMENSION)) \
+                    .expand_dims(axis=1)
+                en2_desc = X[:, WORD_DIMENSION * 2 + DESC_LENGTH * WORD_DIMENSION:
+                                WORD_DIMENSION * 2 + DESC_LENGTH * WORD_DIMENSION * 2] \
+                    .reshape((X.shape[0], DESC_LENGTH, WORD_DIMENSION)) \
+                    .expand_dims(axis=1)
+
+                y_hat = net(X[:, CNSSNN_START_POINT:])
+                y_hat2 = net2(en1_desc)
+                y_hat3 = net2(en2_desc)
+                lss = loss(y_hat, y[:, 0]) + DESC_LOSS_RATE * (loss2(y_hat2, en1) + loss2(y_hat3, en2))
             lss.backward()
             trainer.step(batch_size, ignore_stale_grad=True)
             train_loss_sum += lss.mean().asscalar()
@@ -191,11 +205,24 @@ class Network(nn.Block):
 
 
 net = Network()
-net.initialize(ctx=ctx)
+net.collect_params().initialize(init=init.Xavier(), ctx=ctx)
 if ADAPTIVE_LEARNING_RATE:
     trainer = gluon.Trainer(net.collect_params(), 'adam', {'beta1': 0.9, 'beta2': 0.99, 'learning_rate': 1e-2})
 else:
     trainer = gluon.Trainer(net.collect_params(), 'adam', {'learning_rate': 0.0001})
-train(net, train_data, test_data)
+
+net2 = nn.Sequential()
+with net2.name_scope():
+    net2.add(nn.Conv2D(256, kernel_size=(3, WORD_DIMENSION), padding=(1, 0), activation='relu'))
+    net2.add(nn.MaxPool2D(pool_size=(DESC_LENGTH, 1)))
+    net2.add(nn.Dense(WORD_DIMENSION))
+net2.collect_params().initialize(init=init.Xavier(), ctx=ctx)
+print(net2)
+
+loss = gloss.SoftmaxCrossEntropyLoss()
+loss2 = gloss.L2Loss()
+trainer2 = gluon.Trainer(net2.collect_params(), 'adam', {'learning_rate': 0.0001})
+
+train(net, net2, train_data, test_data)
 
 fail_id_file.close()

@@ -14,11 +14,18 @@ POS_DIMENSION = 5
 FIXED_WORD_LENGTH = 60
 TRAIN_RADIO = 0.7
 
+wordvec = KeyedVectors.load(WORDVEC, mmap='r')
+PLACEHOLDER = np.zeros(DIMENSION)
+POS_VECTOR = np.random.random((FIXED_WORD_LENGTH * 2, POS_DIMENSION))
 entityvec_key = []
 entityvec_value = np.load('entity2vec_value.npy')
+desc_key = []
+descvec_value = np.load("desc2vec_value.npy")
 
-with open("desc_losses.json", "r", encoding="utf8") as fp:
-    losses_dict = json.load(fp)
+with open("desc2vec_key.txt", "r", encoding="utf8") as f:
+    for line in f:
+        desc_key.append(line.strip())
+descvec_key = [wordvec[k] for k in desc_key]
 
 with open("entity2vec_key.txt", "r", encoding="utf8") as f:
     for line in f:
@@ -26,16 +33,27 @@ with open("entity2vec_key.txt", "r", encoding="utf8") as f:
 
 
 def get_entity_vec(entity_name):
-    try:
+    if entity_name in wordvec:
+        return wordvec[entity_name]
+    else:
+        return PLACEHOLDER
+
+
+def get_entity_desc(entity_name):
+    if entity_name in desc_key:
+        idx = desc_key.index(entity_name)
+        return descvec_value[idx]
+    else:
+        return np.zeros(descvec_value[0].shape)
+
+
+def get_entity_edge_vec(entity_name):
+    if entity_name in entityvec_key:
         idx = entityvec_key.index(entity_name)
         return entityvec_value[idx]
-    except ValueError:
+    else:
         return np.zeros(entityvec_value[0].shape)
 
-
-wordvec = KeyedVectors.load(WORDVEC, mmap='r')
-PLACEHOLDER = np.zeros(DIMENSION)
-POS_VECTOR = np.random.random((FIXED_WORD_LENGTH * 2, POS_DIMENSION))
 
 for corpus, save_filename in ((CORPUS_TRAIN, "data_train_cnssnn_id_desc.npy"),
                               (CORPUS_TEST, "data_test_cnssnn_id_desc.npy")):
@@ -46,7 +64,9 @@ for corpus, save_filename in ((CORPUS_TRAIN, "data_train_cnssnn_id_desc.npy"),
     output_relation = []
     output_en1_vec = []
     output_en2_vec = []
-    output_en_loss = []
+    output_en_pair = []
+    output_en1_desc = []
+    output_en2_desc = []
 
     with open(corpus, "r", encoding="utf8") as f:
         for line in f:
@@ -120,17 +140,11 @@ for corpus, save_filename in ((CORPUS_TRAIN, "data_train_cnssnn_id_desc.npy"),
             output_relation.append(relation)
             output_entity_pos.append(entity_pos)
             output_relative_pos.append(relative_pos)
-            output_en1_vec.append(get_entity_vec(entity_a))
-            output_en2_vec.append(get_entity_vec(entity_b))
-            if entity_a not in losses_dict:
-                en1loss = 0
-            else:
-                en1loss = losses_dict[entity_a]
-            if entity_b not in losses_dict:
-                en2loss = 0
-            else:
-                en2loss = losses_dict[entity_b]
-            output_en_loss.append(en1loss + en2loss)
+            output_en1_vec.append(get_entity_edge_vec(entity_a))
+            output_en2_vec.append(get_entity_edge_vec(entity_b))
+            output_en_pair.append(np.concatenate((get_entity_vec(entity_a), get_entity_vec(entity_b))))
+            output_en1_desc.append(get_entity_desc(entity_a))
+            output_en2_desc.append(get_entity_desc(entity_b))
 
     print("length of output_sentence: %d" % len(output_sentence))
 
@@ -139,18 +153,25 @@ for corpus, save_filename in ((CORPUS_TRAIN, "data_train_cnssnn_id_desc.npy"),
     np_relation = np.array(output_relation, dtype=int)
     np_entity_pos = np.array(output_entity_pos, dtype=int)
     np_relative_pos = np.array(output_relative_pos, dtype=float)
-    np_en1_vec = np.array(output_en1_vec, dtype=float)
-    np_en2_vec = np.array(output_en2_vec, dtype=float)
-    np_en_loss = np.array(output_en_loss, dtype=float)
+    np_en1_edge_vec = np.array(output_en1_vec, dtype=float)
+    np_en2_edge_vec = np.array(output_en2_vec, dtype=float)
+    np_en_pair = np.array(output_en_pair, dtype=float)
+    np_en1_desc = np.array(output_en1_desc, dtype=float)
+    np_en2_desc = np.array(output_en2_desc, dtype=float)
 
     print(np_sentence.shape)
     print(np_relative_pos.shape)
     print(np_entity_pos.shape)
-    print(np_en1_vec.shape)
-    print(np_en2_vec.shape)
-    print(np_en_loss.shape)
+    print(np_en1_edge_vec.shape)
+    print(np_en2_edge_vec.shape)
+    print(np_en_pair.shape)
+    print(np_en1_desc.shape)
+    print(np_en2_desc.shape)
 
-    np_entity_vec = np.concatenate((np_en1_vec, np_en2_vec), axis=1)
+    np_entity_edge_vec = np.concatenate((np_en1_edge_vec, np_en2_edge_vec), axis=1)
+    np_entity_desc = np.concatenate((np_en1_desc.reshape(np_en1_desc.shape[0], -1),
+                                     np_en2_desc.reshape(np_en2_desc.shape[0], -1)), axis=1)
+    print(np_entity_desc.shape)
 
     np_sentence_matrix = np.concatenate((np_sentence, np_relative_pos), axis=2)
     print(np_sentence_matrix.shape)
@@ -163,9 +184,10 @@ for corpus, save_filename in ((CORPUS_TRAIN, "data_train_cnssnn_id_desc.npy"),
         (np.expand_dims(np_relation, axis=1),
          np.expand_dims(np_idx, axis=1),
          entity_pos_vec,
-         np.expand_dims(np_en_loss, axis=1),
+         np_en_pair,
+         np_entity_desc,
          sentence_vec,
-         np_entity_vec
+         np_entity_edge_vec
          ),
         axis=1)
     print(conc.shape)
