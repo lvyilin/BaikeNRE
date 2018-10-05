@@ -1,3 +1,4 @@
+# 方法2：使用描述文本向量直接拼接
 import os
 import time
 
@@ -8,7 +9,7 @@ from mxnet.gluon import loss as gloss, nn, rnn
 from sklearn.metrics import precision_recall_fscore_support, classification_report
 
 CWD = os.getcwd()
-SAVE_MODEL_PATH = os.path.join(CWD, "net_params", "cnssnn_desc", "net_cnssnn_desc_epoch%d_12610.params")
+SAVE_MODEL_PATH = os.path.join(CWD, "net_params", "cnssnn_desc2", "net_cnssnn_desc2_epoch%d_12610.params")
 WORD_DIMENSION = 100
 POS_DIMENSION = 5
 DIMENSION = WORD_DIMENSION + 2 * POS_DIMENSION
@@ -25,7 +26,7 @@ CNSSNN_START_POINT = WORD_DIMENSION * 2 + DESC_LENGTH * WORD_DIMENSION * 2
 
 CTX = mx.gpu(1)
 ctx = [CTX]
-fail_id_file = open("fail_id_cnssnn.txt", "w")
+fail_id_file = open("fail_id_cnssnn2.txt", "w")
 
 input_train = np.load('data_train_cnssnn_id_desc.npy')
 input_test = np.load('data_test_cnssnn_id_desc.npy')
@@ -71,7 +72,7 @@ def evaluate_accuracy(data_iter, net):
     acc = 0
     fail_id = []
     for X, y in data_iter:
-        a, b = accuracy_with_flag(net(X[:, CNSSNN_START_POINT:]), y[:, 0])
+        a, b = accuracy_with_flag(net(X), y[:, 0])
         acc += a
         for i in range(len(b)):
             if not b[i]:
@@ -80,7 +81,7 @@ def evaluate_accuracy(data_iter, net):
     return acc / len(data_iter)
 
 
-def train(net, net2, train_iter, test_iter):
+def train(net, train_iter, test_iter):
     highest_epoch = -1
     highest_acc = -1
 
@@ -93,24 +94,10 @@ def train(net, net2, train_iter, test_iter):
             print("learning_rate decay: %f" % trainer.learning_rate)
         for X, y in train_iter:
             with autograd.record():
-                en1 = X[:, 0:WORD_DIMENSION]
-                en2 = X[:, WORD_DIMENSION:WORD_DIMENSION * 2]
-                en1_desc = X[:, WORD_DIMENSION * 2:
-                                WORD_DIMENSION * 2 + DESC_LENGTH * WORD_DIMENSION] \
-                    .reshape((X.shape[0], DESC_LENGTH, WORD_DIMENSION)) \
-                    .expand_dims(axis=1)
-                en2_desc = X[:, WORD_DIMENSION * 2 + DESC_LENGTH * WORD_DIMENSION:
-                                WORD_DIMENSION * 2 + DESC_LENGTH * WORD_DIMENSION * 2] \
-                    .reshape((X.shape[0], DESC_LENGTH, WORD_DIMENSION)) \
-                    .expand_dims(axis=1)
-
-                y_hat = net(X[:, CNSSNN_START_POINT:])
-                y_hat2 = net2(en1_desc)
-                y_hat3 = net2(en2_desc)
-                lss = loss(y_hat, y[:, 0]) + DESC_LOSS_RATE * (loss2(y_hat2, en1) + loss2(y_hat3, en2))
+                y_hat = net(X)
+                lss = loss(y_hat, y[:, 0])
             lss.backward()
             trainer.step(batch_size, ignore_stale_grad=True)
-            trainer2.step(batch_size)
             train_loss_sum += lss.mean().asscalar()
             train_acc_sum += accuracy(y_hat, y[:, 0])
         test_acc = evaluate_accuracy(test_iter, net)
@@ -130,7 +117,7 @@ def evaluate_model(net, epoch):
     y_hat = net(x_test)
     y_test_0 = y_test[:, 0]
     result = nd.concat(y_test_0.expand_dims(axis=1), y_hat, dim=1)
-    np.save("result_cnssnn_desc.npy", result.asnumpy())
+    np.save("result_cnssnn_desc2.npy", result.asnumpy())
     predict_list = y_hat.argmax(axis=1).asnumpy().astype(np.int).tolist()
     label_list = y_test_0.astype(np.int).asnumpy().tolist()
     print(precision_recall_fscore_support(label_list, predict_list, average='weighted'))
@@ -152,13 +139,30 @@ class Network(nn.Block):
                                          activation="sigmoid"))
             self.center_out = nn.Sequential()
             self.center_out.add(nn.Dense(200, activation="relu"))
+
+            self.desc_gru = rnn.GRU(64, num_layers=1, bidirectional=True, layout="NTC", dropout=0.2)
+            self.desc_att = nn.Sequential()
+            self.desc_att.add(nn.Dense(1, flatten=False,
+                                       activation="sigmoid"))
+            self.desc_out = nn.Sequential()
+            self.desc_out.add(nn.Dense(100, activation="relu"))
+
             self.output = nn.Sequential()
             self.output.add(nn.Dropout(0.5))
             self.output.add(nn.Dense(7))
 
     def forward(self, input_data):
-        e1_vec_start = FIXED_WORD_LENGTH * DIMENSION
-        x = input_data[:, :e1_vec_start].reshape(
+        # en1 = input_data[:, 0:WORD_DIMENSION]
+        # en2 = input_data[:, WORD_DIMENSION:WORD_DIMENSION * 2]
+        en1_desc = input_data[:, WORD_DIMENSION * 2:
+                                 WORD_DIMENSION * 2 + DESC_LENGTH * WORD_DIMENSION] \
+            .reshape((input_data.shape[0], DESC_LENGTH, WORD_DIMENSION))
+        en2_desc = input_data[:, WORD_DIMENSION * 2 + DESC_LENGTH * WORD_DIMENSION:
+                                 WORD_DIMENSION * 2 + DESC_LENGTH * WORD_DIMENSION * 2] \
+            .reshape((input_data.shape[0], DESC_LENGTH, WORD_DIMENSION))
+
+        e1_vec_start = FIXED_WORD_LENGTH * DIMENSION + WORD_DIMENSION * 2 + DESC_LENGTH * WORD_DIMENSION * 2
+        x = input_data[:, WORD_DIMENSION * 2 + DESC_LENGTH * WORD_DIMENSION * 2:e1_vec_start].reshape(
             (input_data.shape[0], FIXED_WORD_LENGTH, DIMENSION))  # (m, 60, 110)
         e1neimask = input_data[:, e1_vec_start:e1_vec_start + MASK_LENGTH]  # (m, 51)
         e1edge = input_data[:, e1_vec_start + MASK_LENGTH:e1_vec_start + MASK_LENGTH + ENTITY_EDGE_VEC_LENGTH].reshape(
@@ -170,6 +174,22 @@ class Network(nn.Block):
         e2edge = input_data[:, e2_vec_start + MASK_LENGTH:e2_vec_start + MASK_LENGTH + ENTITY_EDGE_VEC_LENGTH].reshape(
             (input_data.shape[0], ENTITY_DEGREE, WORD_DIMENSION * 2))  # (m, 51,200)
         e2neigh = e2edge[:, :, :WORD_DIMENSION]
+
+        en1_desc_h = self.desc_gru(en1_desc)
+        en1_desc_ht = nd.tanh(en1_desc_h)
+        en1_att_g = self.desc_att(en1_desc_h)
+        en1_att_g = nd.softmax(en1_att_g, axis=1)
+        en1_att_gt = nd.transpose(en1_att_g, axes=(0, 2, 1))
+        en1_desc_n = nd.batch_dot(en1_att_gt, en1_desc_ht)
+        y_en1 = self.desc_out(en1_desc_n)
+
+        en2_desc_h = self.desc_gru(en2_desc)
+        en2_desc_ht = nd.tanh(en2_desc_h)
+        en2_att_g = self.desc_att(en2_desc_h)
+        en2_att_g = nd.softmax(en2_att_g, axis=1)
+        en2_att_gt = nd.transpose(en2_att_g, axes=(0, 2, 1))
+        en2_desc_n = nd.batch_dot(en2_att_gt, en2_desc_ht)
+        y_en2 = self.desc_out(en2_desc_n)
 
         gru = self.gru
         x = nd.transpose(x, axes=(1, 0, 2))
@@ -200,7 +220,7 @@ class Network(nn.Block):
         center_y = center_out(center_y)
 
         out = self.output
-        y4 = nd.concat(y1, center_y, dim=1)
+        y4 = nd.concat(y1, center_y, y_en1, y_en2, dim=1)
         y5 = out(y4)
         return y5
 
@@ -212,18 +232,7 @@ if ADAPTIVE_LEARNING_RATE:
 else:
     trainer = gluon.Trainer(net.collect_params(), 'adam', {'learning_rate': 0.0001})
 
-net2 = nn.Sequential()
-with net2.name_scope():
-    net2.add(nn.Conv2D(256, kernel_size=(3, WORD_DIMENSION), padding=(1, 0), activation='relu'))
-    net2.add(nn.MaxPool2D(pool_size=(DESC_LENGTH, 1)))
-    net2.add(nn.Dense(WORD_DIMENSION))
-net2.collect_params().initialize(init=init.Xavier(), ctx=ctx)
-print(net2)
-
 loss = gloss.SoftmaxCrossEntropyLoss()
-loss2 = gloss.L2Loss()
-trainer2 = gluon.Trainer(net2.collect_params(), 'adam', {'learning_rate': 0.0001})
-
-train(net, net2, train_data, test_data)
+train(net, train_data, test_data)
 
 fail_id_file.close()

@@ -3,11 +3,12 @@ import time
 
 import numpy as np
 import mxnet as mx
-from mxnet import gluon, init, autograd, nd
+from mxnet import gluon, autograd, nd
 from mxnet.gluon import loss as gloss, nn, rnn
+from sklearn.metrics import precision_recall_fscore_support, classification_report
 
 CWD = os.getcwd()
-SAVE_MODEL_PATH = CWD + "\\net_params\\cnssnn_att\\net_cnssnn_att_epoch%d.params"
+SAVE_MODEL_PATH = os.path.join(CWD, "net_params", "cnssnn_att", "net_cnssnn_att_epoch%d_12610.params")
 WORD_DIMENSION = 100
 POS_DIMENSION = 5
 DIMENSION = WORD_DIMENSION + 2 * POS_DIMENSION
@@ -19,15 +20,19 @@ ENTITY_EDGE_VEC_LENGTH = ENTITY_DEGREE * (WORD_DIMENSION * 2)
 VEC_LENGTH = DIMENSION * FIXED_WORD_LENGTH + ENTITY_EDGE_VEC_LENGTH * 2
 ADAPTIVE_LEARNING_RATE = True
 
-input_train = np.load('data_train_cnssnn.npy')
-input_test = np.load('data_test_cnssnn.npy')
+CTX = mx.gpu(0)
+ctx = [CTX]
+fail_id_file = open("fail_id_cnssnn_att.txt", "w")
 
-x_train = input_train[:, 3:]
-y_train = input_train[:, 0]
+input_train = np.load('data_train_cnssnn_id_12610.npy')
+input_test = np.load('data_test_cnssnn_id_12610.npy')
+
+x_train = input_train[:, 4:]
+y_train = input_train[:, 0:2]
 print(x_train.shape)
 print(y_train.shape)
-x_test = input_test[:, 3:]
-y_test = input_test[:, 0]
+x_test = input_test[:, 4:]
+y_test = input_test[:, 0:2]
 print(x_test.shape)
 print(y_test.shape)
 
@@ -37,8 +42,16 @@ x_test = x_test.astype(np.float32)
 y_test = y_test.astype(np.float32)
 print(x_train.shape, x_test.shape)
 
+x_train = nd.array(x_train, ctx=CTX)
+y_train = nd.array(y_train, ctx=CTX)
+x_test = nd.array(x_test, ctx=CTX)
+y_test = nd.array(y_test, ctx=CTX)
+
+decay_rate = 0.1
+epochs = 100
+gap = 50
+
 batch_size = 128
-num_epochs = 100
 loss = gloss.SoftmaxCrossEntropyLoss()
 
 train_data = gluon.data.DataLoader(gluon.data.ArrayDataset(x_train, y_train), batch_size, shuffle=True)
@@ -49,39 +62,63 @@ def accuracy(y_hat, y):
     return (y_hat.argmax(axis=1) == y).mean().asscalar()
 
 
+def accuracy_with_flag(y_hat, y):
+    return (y_hat.argmax(axis=1) == y).mean().asscalar(), (y_hat.argmax(axis=1) == y)
+
+
 def evaluate_accuracy(data_iter, net):
     acc = 0
+    fail_id = []
     for X, y in data_iter:
-        acc += accuracy(net(X), y)
+        a, b = accuracy_with_flag(net(X), y[:, 0])
+        acc += a
+        for i in range(len(b)):
+            if not b[i]:
+                fail_id.append(str(int(y[i, 1].asscalar())))
+    fail_id_file.write("%s\n" % " ".join(fail_id))
     return acc / len(data_iter)
 
 
-decay_rate = 0.1
-epochs = 200
-gap = 50
-
-
 def train(net, train_iter, test_iter):
+    highest_epoch = -1
+    highest_acc = -1
     for epoch in range(1, epochs + 1):
         train_loss_sum = 0
         train_acc_sum = 0
         start = time.time()
-        if ADAPTIVE_LEARNING_RATE and epoch % gap == 0:
+        if ADAPTIVE_LEARNING_RATE and epoch % gap == 0 and trainer.learning_rate > 0.0001:
             trainer.set_learning_rate(trainer.learning_rate * decay_rate)
             print("learning_rate decay: %f" % trainer.learning_rate)
         for X, y in train_iter:
             with autograd.record():
                 y_hat = net(X)
-                lss = loss(y_hat, y)
+                lss = loss(y_hat, y[:, 0])
             lss.backward()
             trainer.step(batch_size, ignore_stale_grad=True)
             train_loss_sum += lss.mean().asscalar()
-            train_acc_sum += accuracy(y_hat, y)
+            train_acc_sum += accuracy(y_hat, y[:, 0])
         test_acc = evaluate_accuracy(test_iter, net)
+        if test_acc > highest_acc:
+            highest_acc = test_acc
+            highest_epoch = epoch
         print('epoch %d, loss %.4f, train acc %.3f, test acc %.3f time %.1f sec'
               % (epoch, train_loss_sum / len(train_iter),
                  train_acc_sum / len(train_iter), test_acc, time.time() - start))
-        net.save_parameters(SAVE_MODEL_PATH % epoch)
+        net.save_params(SAVE_MODEL_PATH % epoch)
+    print("highest epoch & acc: %d, %f" % (highest_epoch, highest_acc))
+    evaluate_model(net, highest_epoch)
+
+
+def evaluate_model(net, epoch):
+    net.load_params(SAVE_MODEL_PATH % epoch, ctx=CTX)
+    y_hat = net(x_test)
+    y_test_0 = y_test[:, 0]
+    result = nd.concat(y_test_0.expand_dims(axis=1), y_hat, dim=1)
+    np.save("result_cnssnn_att.npy", result.asnumpy())
+    predict_list = y_hat.argmax(axis=1).asnumpy().astype(np.int).tolist()
+    label_list = y_test_0.astype(np.int).asnumpy().tolist()
+    print(precision_recall_fscore_support(label_list, predict_list, average='weighted'))
+    print(classification_report(label_list, predict_list))
 
 
 class Network(nn.Block):
@@ -89,11 +126,16 @@ class Network(nn.Block):
         super(Network, self).__init__(**kwargs)
         with self.name_scope():
             self.gru = rnn.GRU(100, num_layers=1, bidirectional=True)
+
+            self.gru_out = nn.Sequential()
+            # self.gru_out.add(nn.MaxPool2D(pool_size=(FIXED_WORD_LENGTH, 1)), )
+            # self.gru_out.add(nn.Flatten())
+            # self.gru_out.add(nn.Activation(activation='relu'))
+            self.gru_out.add(nn.Dense(100, activation="relu"))
+
             self.att = nn.Sequential()
             self.att.add(nn.Dense(1, flatten=False,
                                   activation="sigmoid"))
-            self.att_out = nn.Sequential()
-            self.att_out.add(nn.Dense(200, activation="relu"))
 
             self.center_att = nn.Sequential()
             self.center_att.add(nn.Dense(1, in_units=200, flatten=False,
@@ -102,7 +144,7 @@ class Network(nn.Block):
             self.center_out.add(nn.Dense(200, activation="relu"))
             self.output = nn.Sequential()
             self.output.add(nn.Dropout(0.5))
-            self.output.add(nn.Dense(11))
+            self.output.add(nn.Dense(7))
 
     def forward(self, input_data):
         e1_vec_start = FIXED_WORD_LENGTH * DIMENSION
@@ -120,14 +162,17 @@ class Network(nn.Block):
             (input_data.shape[0], ENTITY_DEGREE, WORD_DIMENSION * 2))  # (m, 51,200)
         e2neigh = e2edge[:, :, :WORD_DIMENSION]
 
+        gru = self.gru
         x = nd.transpose(x, axes=(1, 0, 2))
-        h = nd.transpose(self.gru(x), axes=(1, 0, 2))
+        h = nd.transpose(self.gru(x), axes=(1, 0, 2))  # (m,60,100)
         h = nd.tanh(h)
         g = self.att(h)
         g = nd.softmax(g, axis=1)
-        gt = nd.transpose(g, axes=(0, 2, 1))  # (m,1,60)
+        gt = nd.transpose(g, axes=(0, 2, 1))
         n = nd.batch_dot(gt, h)
-        y1 = self.att_out(n)
+        gru_out = self.gru_out
+        y1 = gru_out(n)  # (m,200)
+        # y1 = gru_out(ht.expand_dims(1))  # (m,200)
 
         att = self.center_att
         e1edge = nd.tanh(e1edge)
@@ -157,9 +202,11 @@ class Network(nn.Block):
 
 
 net = Network()
-net.initialize()
+net.initialize(ctx=ctx)
 if ADAPTIVE_LEARNING_RATE:
     trainer = gluon.Trainer(net.collect_params(), 'adam', {'beta1': 0.9, 'beta2': 0.99, 'learning_rate': 1e-2})
 else:
     trainer = gluon.Trainer(net.collect_params(), 'adam', {'learning_rate': 0.0001})
 train(net, train_data, test_data)
+
+fail_id_file.close()

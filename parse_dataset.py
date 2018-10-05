@@ -85,15 +85,15 @@ for file, corpus in ((TRAIN_FILE, CORPUS_TRAIN), (TEST_FILE, CORPUS_TEST)):
                 sentence = sentence.replace(en2, en2_new)
                 en2 = en2_new
 
-            en1_pos = getEntityPos(sentence, en1)
-            en2_pos = getEntityPos(sentence, en2)
+            en1_pos = getEntityPos(sentence, en1) + 1
+            en2_pos = getEntityPos(sentence, en2) + 3
 
             en1 = en1.replace("<e1>", "")
             en1 = en1.replace("</e1>", "")
             en2 = en2.replace("<e2>", "")
             en2 = en2.replace("</e2>", "")
-            for old in ("<e1>", "</e1>", "<e2>", "</e2>"):
-                sentence = sentence.replace(old, "")
+            for old, new in (("<e1>", "<e1> "), ("</e1>", " </e1>"), ("<e2>", "<e2> "), ("</e2>", " </e2>")):
+                sentence = sentence.replace(old, new)
 
             # en1 = getStem(en1)
             # en2 = getStem(en2)

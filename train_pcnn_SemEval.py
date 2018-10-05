@@ -8,7 +8,7 @@ from mxnet.gluon import loss as gloss, nn
 from sklearn.metrics import precision_recall_fscore_support, classification_report
 
 CWD = os.getcwd()
-SAVE_MODEL_PATH = os.path.join(CWD, "net_params", "pcnn_SemEval", "net_pcnn_epoch%d_12610.params")
+SAVE_MODEL_PATH = os.path.join(CWD, "net_params", "pcnn_SemEval", "net_pcnn_epoch%d.params")
 SENTENCE_DIMENSION = 100
 POS_DIMENSION = 5
 DIMENSION = SENTENCE_DIMENSION + 2 * POS_DIMENSION
@@ -111,7 +111,7 @@ net.collect_params().initialize(init=init.Xavier(), ctx=ctx)
 print(net)
 
 batch_size = 100
-num_epochs = 100
+num_epochs = 300
 decay_rate = 0.1
 gap = 25
 loss = gloss.SoftmaxCrossEntropyLoss()
