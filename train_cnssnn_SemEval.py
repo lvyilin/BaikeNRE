@@ -124,15 +124,16 @@ class Network(nn.Block):
     def __init__(self, **kwargs):
         super(Network, self).__init__(**kwargs)
         with self.name_scope():
-            self.gru = rnn.GRU(100, num_layers=1, bidirectional=True)
-            self.gru_out = nn.Sequential()
-            self.gru_out.add(nn.MaxPool2D(pool_size=(FIXED_WORD_LENGTH, 1)), )
-            self.gru_out.add(nn.Flatten())
-            self.gru_out.add(nn.Activation(activation='relu'))
+            self.lstm = rnn.LSTM(64, num_layers=1, bidirectional=True)
+            self.lstm_out = nn.Sequential()
+            self.lstm_out.add(nn.MaxPool2D(pool_size=(FIXED_WORD_LENGTH, 1)), )
+            self.lstm_out.add(nn.Flatten())
+            self.lstm_out.add(nn.Activation(activation='relu'))
 
             self.center_att = nn.Sequential()
             self.center_att.add(nn.Dense(1, in_units=200, flatten=False,
                                          activation="sigmoid"))
+
             self.center_out = nn.Sequential()
             self.center_out.add(nn.Dense(200, activation="relu"))
             self.output = nn.Sequential()
@@ -155,12 +156,10 @@ class Network(nn.Block):
             (input_data.shape[0], ENTITY_DEGREE, WORD_DIMENSION * 2))  # (m, 51,200)
         e2neigh = e2edge[:, :, :WORD_DIMENSION]
 
-        gru = self.gru
         x = nd.transpose(x, axes=(1, 0, 2))
-        h = gru(x)
+        h = self.lstm(x)
         ht = nd.transpose(h, axes=(1, 0, 2))
-        gru_out = self.gru_out
-        y1 = gru_out(ht.expand_dims(1))  # (m,200)
+        y1 = self.lstm_out(ht.expand_dims(1))  # (m,200)
 
         att = self.center_att
         e1edge = nd.tanh(e1edge)
@@ -180,8 +179,7 @@ class Network(nn.Block):
         e2n = e2n.reshape((e2n.shape[0], 100))  # (m,100)
 
         center_y = nd.concat(e1n, e2n, dim=1)  # (m,200)
-        center_out = self.center_out
-        center_y = center_out(center_y)
+        center_y = self.center_out(center_y)
 
         out = self.output
         y4 = nd.concat(y1, center_y, dim=1)

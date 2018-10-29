@@ -80,7 +80,7 @@ for corpus, save_filename in ((CORPUS_TRAIN, "data_train_rnn_SemEval.npy"),
     tag_15 = conc[conc[:, 0] == 15]
     tag_16 = conc[conc[:, 0] == 16]
     tag_17 = conc[conc[:, 0] == 17]
-    # tag_18 = conc[conc[:, 0] == 18]
+    tag_18 = conc[conc[:, 0] == 18]
 
     tag_0[:, 0] = 0
     tag_1[:, 0] = 0
@@ -100,6 +100,7 @@ for corpus, save_filename in ((CORPUS_TRAIN, "data_train_rnn_SemEval.npy"),
     tag_15[:, 0] = 7
     tag_16[:, 0] = 8
     tag_17[:, 0] = 8
+    tag_18[:, 0] = 9
 
     filter = np.concatenate((
         tag_0, tag_1, tag_2, tag_3, tag_4, tag_5, tag_6, tag_7, tag_8, tag_9,
