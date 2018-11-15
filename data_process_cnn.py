@@ -1,4 +1,3 @@
-import mxnet as mx
 from gensim.models import KeyedVectors
 import numpy as np
 import os
