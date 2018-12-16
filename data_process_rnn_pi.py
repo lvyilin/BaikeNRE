@@ -5,16 +5,17 @@ import os
 
 CWD = os.getcwd()
 WORDVEC = os.path.join(CWD, "wordvectors.kv")
-CORPUS_TRAIN = os.path.join(CWD, "corpus_train.txt")
-CORPUS_TEST = os.path.join(CWD, "corpus_test.txt")
+CORPUS_TRAIN = os.path.join(CWD, "corpus_train2.txt")
+CORPUS_TEST = os.path.join(CWD, "corpus_test2.txt")
 DIMENSION = 100
 FIXED_WORD_LENGTH = 60
 
 wordvec = KeyedVectors.load(WORDVEC, mmap='r')
 PLACEHOLDER = np.zeros(DIMENSION)
+POS_VEC = np.random.random((4, DIMENSION))
 
-for corpus, save_filename in ((CORPUS_TRAIN, "data_train_rnn.npy"),
-                              (CORPUS_TEST, "data_test_rnn.npy")):
+for corpus, save_filename in ((CORPUS_TRAIN, "data_train_rnn_pi.npy"),
+                              (CORPUS_TEST, "data_test_rnn_pi.npy")):
     output_sentence = []
     output_relation = []
 
@@ -29,22 +30,32 @@ for corpus, save_filename in ((CORPUS_TRAIN, "data_train_rnn.npy"),
             sentence_vector = []
 
             for i in range(len(sentence)):
-                if sentence[i] == entity_a:
-                    entity_a_pos = i
-                if sentence[i] == entity_b:
-                    entity_b_pos = i
+                # if sentence[i] == entity_a:
+                #     entity_a_pos = i
+                # if sentence[i] == entity_b:
+                #     entity_b_pos = i
 
                 if sentence[i] not in wordvec:
                     word_vector = PLACEHOLDER
+                    sentence_vector.append(word_vector)
                 else:
                     word_vector = wordvec[sentence[i]]
-                sentence_vector.append(word_vector)
+                    if sentence[i] == entity_a:
+                        sentence_vector.append(POS_VEC[0])
+                        sentence_vector.append(word_vector)
+                        sentence_vector.append(POS_VEC[1])
+                    elif sentence[i] == entity_b:
+                        sentence_vector.append(POS_VEC[2])
+                        sentence_vector.append(word_vector)
+                        sentence_vector.append(POS_VEC[3])
+                    else:
+                        sentence_vector.append(word_vector)
 
             if len(sentence_vector) < FIXED_WORD_LENGTH:
                 for i in range(FIXED_WORD_LENGTH - len(sentence_vector)):
                     sentence_vector.append(PLACEHOLDER)
 
-            output_sentence.append(sentence_vector)
+            output_sentence.append(sentence_vector[:FIXED_WORD_LENGTH])
             output_relation.append(relation)
 
     print("length of output_sentence: %d" % len(output_sentence))

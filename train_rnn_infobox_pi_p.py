@@ -1,3 +1,5 @@
+# 添加Position Idicator
+# 分段池化
 import os
 import time
 
@@ -11,7 +13,7 @@ from mxnet.gluon.nn.conv_layers import _infer_weight_shape
 from sklearn.metrics import precision_recall_fscore_support, classification_report
 
 CWD = os.getcwd()
-SAVE_MODEL_PATH = os.path.join(CWD, "net_params", "lstm_infobox", "net_lstm_infoboxcopy2_epoch%d.params")
+SAVE_MODEL_PATH = os.path.join(CWD, "net_params", "rnn_infobox_pi_p", "net_rnn_infobox_pi_p_epoch%d.params")
 WORD_DIMENSION = 100
 DIMENSION = WORD_DIMENSION
 FIXED_WORD_LENGTH = 60
@@ -19,11 +21,11 @@ INFOBOX_VALUE_LENGTH = 10
 INFOBOX_LENGTH = 20
 ADAPTIVE_LEARNING_RATE = True
 
-CTX = mx.gpu(5)
+CTX = mx.gpu(3)
 ctx = [CTX]
 
-input_train = np.load('data_train_rnn_infobox.npy')
-input_test = np.load('data_test_rnn_infobox.npy')
+input_train = np.load('data_train_rnn_infobox_pi_p.npy')
+input_test = np.load('data_test_rnn_infobox_pi_p.npy')
 
 x_train = input_train[:, 1:]
 y_train = input_train[:, 0]
@@ -44,35 +46,6 @@ x_train = nd.array(x_train, ctx=CTX)
 y_train = nd.array(y_train, ctx=CTX)
 x_test = nd.array(x_test, ctx=CTX)
 y_test = nd.array(y_test, ctx=CTX)
-
-
-def pool2d_new(X, pool_size, mode='max'):
-    p_h, p_w = pool_size
-    Y = nd.zeros((X.shape[0] - p_h + 1, X.shape[1] - p_w + 1), ctx=CTX)
-    for i in range(Y.shape[0]):
-        for j in range(Y.shape[1]):
-            temp1 = i + p_h
-            temp2 = j + p_w
-            if mode == 'max':
-                Y[i, j] = nd.max(X[i:temp1, j: temp2])
-            elif mode == 'avg':
-                Y[i, j] = nd.mean(X[i: i + p_h, j: j + p_w])
-    return Y
-
-
-def corr2d_new(X, K):
-    h, w = K.shape
-    Y = nd.zeros((X.shape[0] - h + 1, X.shape[1] - w + 1), ctx=CTX)
-    for i in range(Y.shape[0]):
-        R = nd.zeros((X.shape[1] - w + 1), ctx=CTX)
-        for j in range(Y.shape[1]):
-            temp1 = i + h
-            temp2 = j + w
-            temp3 = X[i: temp1, j: temp2] * K
-            sum_temp = nd.sum(temp3)
-            R[j] = sum_temp
-        Y[i] = R
-    return Y
 
 
 class _Conv(nn.HybridBlock):
@@ -171,15 +144,27 @@ class Network(nn.Block):
         super().__init__(prefix, params)
         with self.name_scope():
             self.lstm = rnn.LSTM(64, num_layers=1, bidirectional=True, dropout=0.2, layout='NTC')
-            self.lstm_out = nn.MaxPool2D(pool_size=(FIXED_WORD_LENGTH, 1))
-            # self.att = nn.Sequential()
-            # self.att.add(nn.Dense(1, flatten=False,
-            #                       activation="tanh"))
-            self.conv = MyConv2D(INFOBOX_LENGTH, kernel_size=(INFOBOX_VALUE_LENGTH, DIMENSION),
-                                 strides=(1, 1), dilation=(1, 1), use_bias=False, in_channels=1,
-                                 activation='relu')
-            self.pool = nn.MaxPool2D(pool_size=(1, 29), strides=(1, 1))
-            self.dense = nn.Dense(64, activation="sigmoid")
+            self.pool = nn.MaxPool2D(pool_size=(FIXED_WORD_LENGTH, 1))
+            self.sen_out = nn.Sequential()
+            # self.sen_out.add(nn.Dense(512, activation='relu'))
+            self.sen_out.add(nn.Flatten())
+            self.sen_out.add(nn.Activation(activation='relu'))
+            #             self.att = nn.Sequential()
+            #             self.att.add(nn.Dense(1, flatten=False,
+            #                                   activation="tanh"))
+            self.conv1 = MyConv2D(INFOBOX_LENGTH, kernel_size=(INFOBOX_VALUE_LENGTH, DIMENSION),
+                                  strides=(1, 1), dilation=(1, 1), use_bias=False, in_channels=1,
+                                  activation='relu')
+            self.conv2 = MyConv2D(INFOBOX_LENGTH, kernel_size=(INFOBOX_VALUE_LENGTH, DIMENSION),
+                                  strides=(1, 1), dilation=(1, 1), use_bias=False, in_channels=1,
+                                  activation='relu')
+            #             self.pool = nn.MaxPool2D(pool_size=(10,1), strides=(1, 1))
+
+            self.dense1 = nn.Dense(384, activation="sigmoid")
+            self.dense2 = nn.Dense(384, activation="sigmoid")
+            self.infobox_out = nn.Sequential()
+            self.infobox_out.add(nn.Dense(384, activation="relu"))
+
             self.output = nn.Sequential()
             self.output.add(nn.Flatten())
             self.output.add(nn.Activation(activation='relu'))
@@ -187,63 +172,92 @@ class Network(nn.Block):
             self.output.add(nn.Dense(7))
 
     def forward(self, input_data):
-        x_sen = input_data[:, :DIMENSION * FIXED_WORD_LENGTH].reshape(
+        ep1 = input_data[:, 0].asnumpy().astype(np.int).tolist()
+        ep2 = input_data[:, 1].asnumpy().astype(np.int).tolist()
+        x_sen = input_data[:, 2:DIMENSION * FIXED_WORD_LENGTH + 2].reshape(
             (input_data.shape[0], FIXED_WORD_LENGTH, DIMENSION))
-        e1_start = DIMENSION * FIXED_WORD_LENGTH
+        e1_start = DIMENSION * FIXED_WORD_LENGTH + 2
         e1_infobox = input_data[:, e1_start:e1_start + INFOBOX_LENGTH * INFOBOX_VALUE_LENGTH * DIMENSION].reshape(
-            (input_data.shape[0], INFOBOX_LENGTH, INFOBOX_VALUE_LENGTH, DIMENSION))  # (batch_size,20,10,100)
+            (input_data.shape[0], INFOBOX_LENGTH, INFOBOX_VALUE_LENGTH,
+             DIMENSION))  # (batch_size,INFOBOX_LENGTH,INFOBOX_VALUE_LENGTH,100)
         e2_start = e1_start + INFOBOX_LENGTH * INFOBOX_VALUE_LENGTH * DIMENSION
         e2_infobox = input_data[:, e2_start:e2_start + INFOBOX_LENGTH * INFOBOX_VALUE_LENGTH * DIMENSION].reshape(
-            (input_data.shape[0], INFOBOX_LENGTH, INFOBOX_VALUE_LENGTH, DIMENSION))  # (batch_size,20,10,100)
-        h_sen = self.lstm(x_sen)  # (batch_size,60,128)
-
+            (input_data.shape[0], INFOBOX_LENGTH, INFOBOX_VALUE_LENGTH,
+             DIMENSION))  # (batch_size,INFOBOX_LENGTH,INFOBOX_VALUE_LENGTH,100)
+        h_sen = self.lstm(x_sen).expand_dims(axis=1)  # (batch_size,60,128)
+        be1_mask = nd.zeros(h_sen.shape, ctx=CTX)
+        aes_mask = nd.zeros(h_sen.shape, ctx=CTX)
+        be2_mask = nd.zeros(h_sen.shape, ctx=CTX)
+        be1_pad = nd.ones(h_sen.shape, ctx=CTX) * (-100)
+        aes_pad = nd.ones(h_sen.shape, ctx=CTX) * (-100)
+        be2_pad = nd.ones(h_sen.shape, ctx=CTX) * (-100)
+        for i in range(x_sen.shape[0]):
+            if ep1[i] == 0:
+                ep1[i] += 1
+                ep2[i] += 1
+            be1_mask[i, :, :ep1[i], :] = 1
+            be1_pad[i, :, :ep1[i], :] = 0
+            aes_mask[i, :, ep1[i]:ep2[i], :] = 1
+            aes_pad[i, :, ep1[i]:ep2[i], :] = 0
+            be2_mask[i, :, ep2[i]:, :] = 1
+            be2_pad[i, :, ep2[i]:, :] = 0
+        be1 = h_sen * be1_mask
+        aes = h_sen * aes_mask
+        be2 = h_sen * be2_mask
+        be1 = be1 + be1_pad
+        aes = aes + aes_pad
+        be2 = be2 + be2_pad
+        o1 = self.pool(be1)  # (128, 1, 3, 128)
+        o2 = self.pool(aes)
+        o3 = self.pool(be2)
+        y_sen = nd.concat(o1, o2, o3, dim=2)  # (128, 384)
+        y_out = self.sen_out(y_sen)
         e1_infobox_list_all = nd.ones((e1_infobox.shape[0], e1_infobox.shape[1], 51, 1),
                                       ctx=CTX)  # (batch_size,INFOBOX_LENGTH,51,1)
         e2_infobox_list_all = nd.ones((e1_infobox.shape[0], e2_infobox.shape[1], 51, 1),
                                       ctx=CTX)  # (batch_size,INFOBOX_LENGTH,51,1)
 
         for i in range(e1_infobox.shape[0]):
-            e1 = self.conv(h_sen[i].expand_dims(axis=0).expand_dims(axis=1), e1_infobox[i].expand_dims(axis=1))
-            e1_p = self.pool(e1)
-            e1_infobox_list_all[i] = e1_p.reshape((e1_p.shape[1], e1_p.shape[2], e1_p.shape[3]))
-            e2 = self.conv(h_sen[i].expand_dims(axis=0).expand_dims(axis=1), e2_infobox[i].expand_dims(axis=1))
-            e2_p = self.pool(e2)
-            e2_infobox_list_all[i] = e2_p.reshape((e2_p.shape[1], e2_p.shape[2], e2_p.shape[3]))
+            e1 = self.conv1(x_sen[i].expand_dims(axis=0).expand_dims(axis=1), e1_infobox[i].expand_dims(axis=1))
+            #             e1_p = self.pool(e1)
+            e1_infobox_list_all[i] = e1.reshape((e1.shape[1], e1.shape[2], e1.shape[3]))
+            e2 = self.conv2(x_sen[i].expand_dims(axis=0).expand_dims(axis=1), e2_infobox[i].expand_dims(axis=1))
+            #             e2_p = self.pool(e2)
+            e2_infobox_list_all[i] = e2.reshape((e2.shape[1], e2.shape[2], e2.shape[3]))
 
         e1_infobox_list_all = e1_infobox_list_all.reshape(
-            (e1_infobox.shape[0], e1_infobox.shape[1], 51))  # (batch_size,INFOBOX_LENGTH,51)
+            (e1_infobox.shape[0], e1_infobox.shape[1], -1))  # (batch_size,INFOBOX_LENGTH,51)
         e2_infobox_list_all = e2_infobox_list_all.reshape(
+            (e2_infobox.shape[0], e2_infobox.shape[1], -1))  # (batch_size,INFOBOX_LENGTH,51)
 
-            (e2_infobox.shape[0], e2_infobox.shape[1], 51))  # (batch_size,INFOBOX_LENGTH,51)
-
-        e1_infobox_list_all_new = self.dense(e1_infobox_list_all)
-        e2_infobox_list_all_new = self.dense(e2_infobox_list_all)
+        e1_infobox_list_all_new = self.dense1(e1_infobox_list_all)
+        e2_infobox_list_all_new = self.dense2(e2_infobox_list_all)
 
         #         g1 = nd.softmax(self.att(e1_infobox_list_all),axis=2) # (batch_size,INFOBOX_LENGTH,1)
         #         g2 = nd.softmax(self.att(e2_infobox_list_all),axis=2) # (batch_size,INFOBOX_LENGTH,1)
-        #         g1_att = nd.batch_dot(nd.transpose(g1,axes = (0,2,1)),e1_infobox_list_all) # (batch_size,1,51)
-        #         g2_att = nd.batch_dot(nd.transpose(g2,axes = (0,2,1)),e2_infobox_list_all) # (batch_size,1,51)
-        #         g1_att = g1_att.reshape((g1_att.shape[0],-1)) # (batch_size,51)
-        #         g2_att = g2_att.reshape((g2_att.shape[0],-1)) # (batch_size,51)
-        #         # (batch_size,102)
-        #         e_infobox_list_all_att = nd.concat(g1_att,g2_att,dim=1)
-        #         e_infobox_list_all_att = nd.concat(e1_infobox_list_all_new,e2_infobox_list_all_new,dim=1)
-        h_sen_new = self.lstm_out(h_sen.expand_dims(1))
-        h_sen_new = h_sen_new.reshape((h_sen_new.shape[0], -1))  # (batch_size,128)
+        #         g1_att = nd.batch_dot(nd.transpose(g1,axes = (0,2,1)),e1_infobox_list_all) # (batch_size,1,64)
+        #         g2_att = nd.batch_dot(nd.transpose(g2,axes = (0,2,1)),e2_infobox_list_all) # (batch_size,1,64)
+        #         g1_att = g1_att.reshape((g1_att.shape[0],-1)) # (batch_size,64)
+        #         g2_att = g2_att.reshape((g2_att.shape[0],-1)) # (batch_size,64)
 
-        # (batch_size,230)
-        h_sen_infobox = nd.concat(h_sen_new, e1_infobox_list_all_new, e2_infobox_list_all_new, dim=1)
-
+        # (batch_size,128)
+        e_infobox_list_all_att = nd.concat(e1_infobox_list_all_new, e2_infobox_list_all_new, dim=1)
+        y_infobox = self.infobox_out(e_infobox_list_all_att)
+        # h_sen_new = self.lstm_out(h_sen.expand_dims(1))
+        # h_sen_new = h_sen_new.reshape((h_sen_new.shape[0], -1))  # (batch_size,128)
+        # (batch_size,256)
+        h_sen_infobox = nd.concat(y_out, y_infobox, dim=1)  # (128, 384) (128, 768)
         y = self.output(h_sen_infobox)
         return y
 
 
 net = Network()
+# net.load_params(SAVE_MODEL_PATH % 3, ctx=CTX)
 net.collect_params().initialize(init=init.Xavier(), ctx=ctx)
 print(net)
 
 batch_size = 128
-num_epochs = 150
+num_epochs = 100
 decay_rate = 0.1
 gap = 25
 loss = gloss.SoftmaxCrossEntropyLoss()
@@ -305,7 +319,7 @@ def evaluate_model(net, epoch):
     net.load_params(SAVE_MODEL_PATH % epoch, ctx=CTX)
     y_hat = net(x_test)
     result = nd.concat(y_test.expand_dims(axis=1), y_hat, dim=1)
-    np.save("Custom-net_lstm_infobox_epoch.npy", result.asnumpy())
+    np.save("Custom-net_rnn_infobox_pi_p_epoch.npy", result.asnumpy())
     predict_list = y_hat.argmax(axis=1).asnumpy().astype(np.int).tolist()
     label_list = y_test.astype(np.int).asnumpy().tolist()
     print(precision_recall_fscore_support(label_list, predict_list, average='weighted'))

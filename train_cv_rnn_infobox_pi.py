@@ -1,17 +1,18 @@
-import os
 import time
-
+import os
 import numpy as np
 import mxnet as mx
-from mxnet import gluon, autograd, nd, init
-from mxnet.base import numeric_types
+from mxnet import gluon, init, autograd, nd
 from mxnet.gluon import loss as gloss, nn, rnn
-from mxnet.gluon.nn import Activation
+from mxnet.base import numeric_types
 from mxnet.gluon.nn.conv_layers import _infer_weight_shape
-from sklearn.metrics import precision_recall_fscore_support, classification_report
+from mxnet.gluon.nn import Activation
+from sklearn.metrics import precision_score, recall_score, f1_score, accuracy_score
+from sklearn.model_selection import KFold
 
+MARK = "rnn_infobox_pi"
 CWD = os.getcwd()
-SAVE_MODEL_PATH = os.path.join(CWD, "net_params", "lstm_infobox", "net_lstm_infoboxcopy2_epoch%d.params")
+SAVE_MODEL_PATH = os.path.join(CWD, "net_params", MARK, "net_{}_epoch%d.params".format(MARK))
 WORD_DIMENSION = 100
 DIMENSION = WORD_DIMENSION
 FIXED_WORD_LENGTH = 60
@@ -19,60 +20,38 @@ INFOBOX_VALUE_LENGTH = 10
 INFOBOX_LENGTH = 20
 ADAPTIVE_LEARNING_RATE = True
 
-CTX = mx.gpu(5)
+CTX = mx.gpu(3)
 ctx = [CTX]
 
-input_train = np.load('data_train_rnn_infobox.npy')
-input_test = np.load('data_test_rnn_infobox.npy')
+input_train = np.load('data_train_rnn_infobox_pi.npy'.format(MARK))
+input_test = np.load('data_test_rnn_infobox_pi.npy'.format(MARK))
+input_all = np.concatenate((input_train, input_test), axis=0)
+np.random.shuffle(input_all)
+input_x = input_all[:, 3:].astype(np.float32)
+input_y = input_all[:, 0].astype(np.int)
 
-x_train = input_train[:, 1:]
-y_train = input_train[:, 0]
-print(x_train.shape)
-print(y_train.shape)
-x_test = input_test[:, 1:]
-y_test = input_test[:, 0]
-print(x_test.shape)
-print(y_test.shape)
-
-x_train = x_train.astype(np.float32)
-y_train = y_train.astype(np.float32)
-x_test = x_test.astype(np.float32)
-y_test = y_test.astype(np.float32)
-print(x_train.shape, x_test.shape)
-
-x_train = nd.array(x_train, ctx=CTX)
-y_train = nd.array(y_train, ctx=CTX)
-x_test = nd.array(x_test, ctx=CTX)
-y_test = nd.array(y_test, ctx=CTX)
+x_input = nd.array(input_x, ctx=CTX)
+y_input = nd.array(input_y, ctx=CTX)
 
 
-def pool2d_new(X, pool_size, mode='max'):
-    p_h, p_w = pool_size
-    Y = nd.zeros((X.shape[0] - p_h + 1, X.shape[1] - p_w + 1), ctx=CTX)
-    for i in range(Y.shape[0]):
-        for j in range(Y.shape[1]):
-            temp1 = i + p_h
-            temp2 = j + p_w
-            if mode == 'max':
-                Y[i, j] = nd.max(X[i:temp1, j: temp2])
-            elif mode == 'avg':
-                Y[i, j] = nd.mean(X[i: i + p_h, j: j + p_w])
-    return Y
+def get_prediction(net, x):
+    return net(x).argmax(axis=1)
 
 
-def corr2d_new(X, K):
-    h, w = K.shape
-    Y = nd.zeros((X.shape[0] - h + 1, X.shape[1] - w + 1), ctx=CTX)
-    for i in range(Y.shape[0]):
-        R = nd.zeros((X.shape[1] - w + 1), ctx=CTX)
-        for j in range(Y.shape[1]):
-            temp1 = i + h
-            temp2 = j + w
-            temp3 = X[i: temp1, j: temp2] * K
-            sum_temp = nd.sum(temp3)
-            R[j] = sum_temp
-        Y[i] = R
-    return Y
+def get_acc(y_true: nd.ndarray.NDArray, y_pred: nd.ndarray.NDArray):
+    return accuracy_score(y_true.asnumpy().astype(np.int), y_pred.asnumpy().astype(np.int))
+
+
+def get_pre(y_true: nd.ndarray.NDArray, y_pred: nd.ndarray.NDArray):
+    return precision_score(y_true.asnumpy().astype(np.int), y_pred.asnumpy().astype(np.int), average="weighted")
+
+
+def get_rec(y_true: nd.ndarray.NDArray, y_pred: nd.ndarray.NDArray):
+    return recall_score(y_true.asnumpy().astype(np.int), y_pred.asnumpy().astype(np.int), average="weighted")
+
+
+def get_f1(y_true: nd.ndarray.NDArray, y_pred: nd.ndarray.NDArray):
+    return f1_score(y_true.asnumpy().astype(np.int), y_pred.asnumpy().astype(np.int), average="weighted")
 
 
 class _Conv(nn.HybridBlock):
@@ -172,14 +151,18 @@ class Network(nn.Block):
         with self.name_scope():
             self.lstm = rnn.LSTM(64, num_layers=1, bidirectional=True, dropout=0.2, layout='NTC')
             self.lstm_out = nn.MaxPool2D(pool_size=(FIXED_WORD_LENGTH, 1))
-            # self.att = nn.Sequential()
-            # self.att.add(nn.Dense(1, flatten=False,
-            #                       activation="tanh"))
-            self.conv = MyConv2D(INFOBOX_LENGTH, kernel_size=(INFOBOX_VALUE_LENGTH, DIMENSION),
-                                 strides=(1, 1), dilation=(1, 1), use_bias=False, in_channels=1,
-                                 activation='relu')
-            self.pool = nn.MaxPool2D(pool_size=(1, 29), strides=(1, 1))
-            self.dense = nn.Dense(64, activation="sigmoid")
+            #             self.att = nn.Sequential()
+            #             self.att.add(nn.Dense(1, flatten=False,
+            #                                   activation="tanh"))
+            self.conv1 = MyConv2D(INFOBOX_LENGTH, kernel_size=(INFOBOX_VALUE_LENGTH, DIMENSION),
+                                  strides=(1, 1), dilation=(1, 1), use_bias=False, in_channels=1,
+                                  activation='relu')
+            self.conv2 = MyConv2D(INFOBOX_LENGTH, kernel_size=(INFOBOX_VALUE_LENGTH, DIMENSION),
+                                  strides=(1, 1), dilation=(1, 1), use_bias=False, in_channels=1,
+                                  activation='relu')
+            #             self.pool = nn.MaxPool2D(pool_size=(10,1), strides=(1, 1))
+            self.dense1 = nn.Dense(384, activation="sigmoid")
+            self.dense2 = nn.Dense(384, activation="sigmoid")
             self.output = nn.Sequential()
             self.output.add(nn.Flatten())
             self.output.add(nn.Activation(activation='relu'))
@@ -191,10 +174,12 @@ class Network(nn.Block):
             (input_data.shape[0], FIXED_WORD_LENGTH, DIMENSION))
         e1_start = DIMENSION * FIXED_WORD_LENGTH
         e1_infobox = input_data[:, e1_start:e1_start + INFOBOX_LENGTH * INFOBOX_VALUE_LENGTH * DIMENSION].reshape(
-            (input_data.shape[0], INFOBOX_LENGTH, INFOBOX_VALUE_LENGTH, DIMENSION))  # (batch_size,20,10,100)
+            (input_data.shape[0], INFOBOX_LENGTH, INFOBOX_VALUE_LENGTH,
+             DIMENSION))  # (batch_size,INFOBOX_LENGTH,INFOBOX_VALUE_LENGTH,100)
         e2_start = e1_start + INFOBOX_LENGTH * INFOBOX_VALUE_LENGTH * DIMENSION
         e2_infobox = input_data[:, e2_start:e2_start + INFOBOX_LENGTH * INFOBOX_VALUE_LENGTH * DIMENSION].reshape(
-            (input_data.shape[0], INFOBOX_LENGTH, INFOBOX_VALUE_LENGTH, DIMENSION))  # (batch_size,20,10,100)
+            (input_data.shape[0], INFOBOX_LENGTH, INFOBOX_VALUE_LENGTH,
+             DIMENSION))  # (batch_size,INFOBOX_LENGTH,INFOBOX_VALUE_LENGTH,100)
         h_sen = self.lstm(x_sen)  # (batch_size,60,128)
 
         e1_infobox_list_all = nd.ones((e1_infobox.shape[0], e1_infobox.shape[1], 51, 1),
@@ -203,80 +188,44 @@ class Network(nn.Block):
                                       ctx=CTX)  # (batch_size,INFOBOX_LENGTH,51,1)
 
         for i in range(e1_infobox.shape[0]):
-            e1 = self.conv(h_sen[i].expand_dims(axis=0).expand_dims(axis=1), e1_infobox[i].expand_dims(axis=1))
-            e1_p = self.pool(e1)
-            e1_infobox_list_all[i] = e1_p.reshape((e1_p.shape[1], e1_p.shape[2], e1_p.shape[3]))
-            e2 = self.conv(h_sen[i].expand_dims(axis=0).expand_dims(axis=1), e2_infobox[i].expand_dims(axis=1))
-            e2_p = self.pool(e2)
-            e2_infobox_list_all[i] = e2_p.reshape((e2_p.shape[1], e2_p.shape[2], e2_p.shape[3]))
+            e1 = self.conv1(x_sen[i].expand_dims(axis=0).expand_dims(axis=1), e1_infobox[i].expand_dims(axis=1))
+            #             e1_p = self.pool(e1)
+            e1_infobox_list_all[i] = e1.reshape((e1.shape[1], e1.shape[2], e1.shape[3]))
+            e2 = self.conv2(x_sen[i].expand_dims(axis=0).expand_dims(axis=1), e2_infobox[i].expand_dims(axis=1))
+            #             e2_p = self.pool(e2)
+            e2_infobox_list_all[i] = e2.reshape((e2.shape[1], e2.shape[2], e2.shape[3]))
 
         e1_infobox_list_all = e1_infobox_list_all.reshape(
-            (e1_infobox.shape[0], e1_infobox.shape[1], 51))  # (batch_size,INFOBOX_LENGTH,51)
+            (e1_infobox.shape[0], e1_infobox.shape[1], -1))  # (batch_size,INFOBOX_LENGTH,51)
         e2_infobox_list_all = e2_infobox_list_all.reshape(
+            (e2_infobox.shape[0], e2_infobox.shape[1], -1))  # (batch_size,INFOBOX_LENGTH,51)
 
-            (e2_infobox.shape[0], e2_infobox.shape[1], 51))  # (batch_size,INFOBOX_LENGTH,51)
-
-        e1_infobox_list_all_new = self.dense(e1_infobox_list_all)
-        e2_infobox_list_all_new = self.dense(e2_infobox_list_all)
+        e1_infobox_list_all_new = self.dense1(e1_infobox_list_all)
+        e2_infobox_list_all_new = self.dense2(e2_infobox_list_all)
 
         #         g1 = nd.softmax(self.att(e1_infobox_list_all),axis=2) # (batch_size,INFOBOX_LENGTH,1)
         #         g2 = nd.softmax(self.att(e2_infobox_list_all),axis=2) # (batch_size,INFOBOX_LENGTH,1)
-        #         g1_att = nd.batch_dot(nd.transpose(g1,axes = (0,2,1)),e1_infobox_list_all) # (batch_size,1,51)
-        #         g2_att = nd.batch_dot(nd.transpose(g2,axes = (0,2,1)),e2_infobox_list_all) # (batch_size,1,51)
-        #         g1_att = g1_att.reshape((g1_att.shape[0],-1)) # (batch_size,51)
-        #         g2_att = g2_att.reshape((g2_att.shape[0],-1)) # (batch_size,51)
-        #         # (batch_size,102)
-        #         e_infobox_list_all_att = nd.concat(g1_att,g2_att,dim=1)
-        #         e_infobox_list_all_att = nd.concat(e1_infobox_list_all_new,e2_infobox_list_all_new,dim=1)
+        #         g1_att = nd.batch_dot(nd.transpose(g1,axes = (0,2,1)),e1_infobox_list_all) # (batch_size,1,64)
+        #         g2_att = nd.batch_dot(nd.transpose(g2,axes = (0,2,1)),e2_infobox_list_all) # (batch_size,1,64)
+        #         g1_att = g1_att.reshape((g1_att.shape[0],-1)) # (batch_size,64)
+        #         g2_att = g2_att.reshape((g2_att.shape[0],-1)) # (batch_size,64)
+
+        # (batch_size,128)
+        e_infobox_list_all_att = nd.concat(e1_infobox_list_all_new, e2_infobox_list_all_new, dim=1)
         h_sen_new = self.lstm_out(h_sen.expand_dims(1))
         h_sen_new = h_sen_new.reshape((h_sen_new.shape[0], -1))  # (batch_size,128)
-
-        # (batch_size,230)
-        h_sen_infobox = nd.concat(h_sen_new, e1_infobox_list_all_new, e2_infobox_list_all_new, dim=1)
-
+        # (batch_size,256)
+        h_sen_infobox = nd.concat(h_sen_new, e_infobox_list_all_att, dim=1)
         y = self.output(h_sen_infobox)
         return y
 
 
-net = Network()
-net.collect_params().initialize(init=init.Xavier(), ctx=ctx)
-print(net)
-
-batch_size = 128
-num_epochs = 150
-decay_rate = 0.1
-gap = 25
-loss = gloss.SoftmaxCrossEntropyLoss()
-# trainer = gluon.Trainer(net.collect_params(), 'AdaDelta', {'rho': 0.95, 'epsilon': 1e-6, 'wd': 0.01})
-# trainer = gluon.Trainer(net.collect_params(), 'sgd', {'learning_rate': .01})
-if ADAPTIVE_LEARNING_RATE:
-    trainer = gluon.Trainer(net.collect_params(), 'adam', {'learning_rate': 0.01})
-else:
-    trainer = gluon.Trainer(net.collect_params(), 'adam', {'learning_rate': 0.0001})
-
-train_data = gluon.data.DataLoader(gluon.data.ArrayDataset(x_train, y_train), batch_size, shuffle=True)
-test_data = gluon.data.DataLoader(gluon.data.ArrayDataset(x_test, y_test), batch_size, shuffle=False)
-
-
-def accuracy(y_hat, y):
-    return (y_hat.argmax(axis=1) == y.astype('float32')).mean().asscalar()
-
-
-def evaluate_accuracy(data_iter, net):
-    acc = 0
-    for X, y in data_iter:
-        y = y.copyto(CTX)
-        acc += accuracy(net(X), y)
-    return acc / len(data_iter)
-
-
-def train(net, train_iter, test_iter, loss, num_epochs, batch_size, trainer):
+def train(net, x_train, y_train, x_test, y_test, trainer):
+    train_iter = gluon.data.DataLoader(gluon.data.ArrayDataset(x_train, y_train), batch_size)
     highest_epoch = -1
-    highest_acc = -1
+    highest_f1 = -1
     for epoch in range(1, num_epochs + 1):
-        train_l_sum = 0
-        train_acc_sum = 0
-        if ADAPTIVE_LEARNING_RATE and epoch % gap == 0:
+        if ADAPTIVE_LEARNING_RATE and epoch % gap == 0 and trainer.learning_rate > lowest_lr:
             trainer.set_learning_rate(trainer.learning_rate * decay_rate)
             print("learning_rate decay: %f" % trainer.learning_rate)
         start = time.time()
@@ -287,29 +236,59 @@ def train(net, train_iter, test_iter, loss, num_epochs, batch_size, trainer):
                 l = loss(y_hat, y)
             l.backward()
             trainer.step(batch_size, ignore_stale_grad=True)
-            train_l_sum += l.mean().asscalar()
-            train_acc_sum += accuracy(y_hat, y)
-        test_acc = evaluate_accuracy(test_iter, net)
-        if test_acc > highest_acc:
-            highest_acc = test_acc
+        pred = get_prediction(net, x_test)
+        test_acc = get_acc(y_test, pred)
+        test_f1 = get_f1(y_test, pred)
+        if test_f1 > highest_f1:
+            highest_f1 = test_f1
             highest_epoch = epoch
-        print('epoch %d, loss %.4f, train acc %.3f, test acc %.3f time %.1f sec'
-              % (epoch, train_l_sum / len(train_iter),
-                 train_acc_sum / len(train_iter), test_acc, time.time() - start))
-        net.save_params(SAVE_MODEL_PATH % epoch)
-    print("highest epoch & acc: %d, %f" % (highest_epoch, highest_acc))
-    evaluate_model(net, highest_epoch)
+            net.save_params(SAVE_MODEL_PATH % epoch)
+        print('epoch %d,test acc %.3f test f1 %.3f time %.1f sec'
+              % (epoch, test_acc, test_f1, time.time() - start))
+    net.load_params(SAVE_MODEL_PATH % highest_epoch, ctx=CTX)
+    print("highest epoch & acc: %d, %f" % (highest_epoch, highest_f1))
 
 
-def evaluate_model(net, epoch):
-    net.load_params(SAVE_MODEL_PATH % epoch, ctx=CTX)
-    y_hat = net(x_test)
-    result = nd.concat(y_test.expand_dims(axis=1), y_hat, dim=1)
-    np.save("Custom-net_lstm_infobox_epoch.npy", result.asnumpy())
-    predict_list = y_hat.argmax(axis=1).asnumpy().astype(np.int).tolist()
-    label_list = y_test.astype(np.int).asnumpy().tolist()
-    print(precision_recall_fscore_support(label_list, predict_list, average='weighted'))
-    print(classification_report(label_list, predict_list))
+def cross_validate(net, X, y, cv=5):
+    kf = KFold(cv)
+    pre_list, rec_list, f1_list = [], [], []
+    for train_index, test_index in kf.split(X):
+        net.collect_params().initialize(init=init.Xavier(), ctx=ctx, force_reinit=True)
+        if ADAPTIVE_LEARNING_RATE:
+            trainer = gluon.Trainer(net.collect_params(), 'adam', {'learning_rate': 0.01})
+        else:
+            trainer = gluon.Trainer(net.collect_params(), 'adam', {'learning_rate': 0.0001})
+        train_index_nd = nd.array(train_index, ctx=CTX)
+        test_index_nd = nd.array(test_index, ctx=CTX)
+        train(net, X[train_index_nd], y[train_index_nd], X[test_index_nd], y[test_index_nd], trainer)
+        prediction = get_prediction(net, X[test_index_nd])
+        pre_list.append(get_pre(y[test_index_nd], prediction))
+        rec_list.append(get_rec(y[test_index_nd], prediction))
+        f1_list.append(get_f1(y[test_index_nd], prediction))
+
+    return pre_list, rec_list, f1_list
 
 
-train(net, train_data, test_data, loss, num_epochs, batch_size, trainer)
+# 网络定义
+net = Network()
+print(net)
+# 评测指标
+# scoring = ['precision_weighted', 'recall_weighted', 'f1_weighted']
+# 超参数
+batch_size = 128
+num_epochs = 50
+decay_rate = 0.1
+lowest_lr = 0.0001
+gap = 20
+# 损失函数
+loss = gloss.SoftmaxCrossEntropyLoss()
+
+# 交叉验证
+pre_list, rec_list, f1_list = cross_validate(net, x_input, y_input, 5)
+print("Precision: " + str(pre_list))
+print("Recall: " + str(rec_list))
+print("F1 Score: " + str(f1_list))
+
+print("Avg precision: {}".format(sum(pre_list) / len(pre_list)))
+print("Avg recall: {}".format(sum(rec_list) / len(rec_list)))
+print("Avg f1 Score: {}".format(sum(f1_list) / len(f1_list)))
